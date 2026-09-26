@@ -1,0 +1,40 @@
+furniture:
+  chair:
+    display-name: "Oak Chair"
+    material: PAPER
+    custom-model-data: 1001
+    hitbox:
+      width: 0.80
+      height: 1.05
+
+  table:
+    display-name: "Oak Table"
+    material: PAPER
+    custom-model-data: 1002
+    hitbox:
+      width: 1.00
+      height: 1.05
+
+  bookshelf:
+    display-name: "Bookshelf"
+    material: PAPER
+    custom-model-data: 1003
+    hitbox:
+      width: 0.95
+      height: 1.80
+
+  workbench:
+    display-name: "Carpenter Workbench"
+    material: PAPER
+    custom-model-data: 1004
+    hitbox:
+      width: 1.00
+      height: 1.05
+
+  sawmill:
+    display-name: "Table Saw"
+    material: PAPER
+    custom-model-data: 1005
+    hitbox:
+      width: 1.00
+      height: 1.05
