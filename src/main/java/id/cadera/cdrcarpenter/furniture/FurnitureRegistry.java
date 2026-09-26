@@ -57,7 +57,8 @@ public final class FurnitureRegistry {
             height = Math.max(0.1F, Math.min(height, 4.0F));
 
             double offsetX = section.getDouble("visual-offset.x", 0.0D);
-            double offsetY = section.getDouble("visual-offset.y", 0.0D);
+            double defaultOffsetY = id.equals("chair") ? 0.55D : 0.0D;
+            double offsetY = section.getDouble("visual-offset.y", defaultOffsetY);
             double offsetZ = section.getDouble("visual-offset.z", 0.0D);
 
             // Chair defaults to a vanilla barrier collision for upgrade safety.
