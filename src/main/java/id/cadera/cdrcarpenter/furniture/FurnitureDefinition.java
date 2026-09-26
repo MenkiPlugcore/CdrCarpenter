@@ -19,6 +19,7 @@ public record FurnitureDefinition(
         double collisionHeight,
         double collisionOffsetX,
         double collisionOffsetY,
-        double collisionOffsetZ
+        double collisionOffsetZ,
+        boolean collisionStandable
 ) {
 }
