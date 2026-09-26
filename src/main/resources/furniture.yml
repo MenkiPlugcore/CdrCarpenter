@@ -9,7 +9,14 @@ furniture:
       y: 0.55
       z: 0.0
     collision:
-      barrier: true
+      mode: CUSTOM
+      width: 0.85
+      depth: 0.85
+      height: 0.58
+      offset:
+        x: 0.0
+        y: 0.0
+        z: 0.0
     hitbox:
       width: 1.00
       height: 1.55
@@ -24,7 +31,7 @@ furniture:
       y: 0.0
       z: 0.0
     collision:
-      barrier: false
+      mode: NONE
     hitbox:
       width: 1.00
       height: 1.05
@@ -39,7 +46,7 @@ furniture:
       y: 0.0
       z: 0.0
     collision:
-      barrier: false
+      mode: NONE
     hitbox:
       width: 0.95
       height: 1.80
@@ -54,7 +61,7 @@ furniture:
       y: 0.0
       z: 0.0
     collision:
-      barrier: false
+      mode: NONE
     hitbox:
       width: 1.00
       height: 1.05
@@ -69,7 +76,7 @@ furniture:
       y: 0.0
       z: 0.0
     collision:
-      barrier: false
+      mode: NONE
     hitbox:
       width: 1.00
       height: 1.05
