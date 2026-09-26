@@ -3,7 +3,7 @@ plugins {
 }
 
 group = "id.cadera"
-version = "0.1.3-hotfix1"
+version = "0.1.4"
 
 repositories {
     mavenCentral()
