@@ -71,8 +71,12 @@ public final class FurnitureManager {
         return true;
     }
 
-    public boolean pickup(Player player, Interaction interaction) {
-        PersistentDataContainer pdc = interaction.getPersistentDataContainer();
+    public boolean pickup(Player player, Entity furnitureEntity) {
+        if (!isFurnitureEntity(furnitureEntity)) {
+            return false;
+        }
+
+        PersistentDataContainer pdc = furnitureEntity.getPersistentDataContainer();
         String furnitureId = pdc.get(plugin.furnitureIdKey(), PersistentDataType.STRING);
         String instanceId = pdc.get(plugin.instanceIdKey(), PersistentDataType.STRING);
         String ownerId = pdc.get(plugin.ownerKey(), PersistentDataType.STRING);
@@ -93,11 +97,7 @@ public final class FurnitureManager {
             return true;
         }
 
-        ItemDisplay display = findDisplay(interaction.getLocation(), instanceId);
-        if (display != null) {
-            display.remove();
-        }
-        interaction.remove();
+        removeInstance(furnitureEntity.getLocation(), instanceId);
 
         ItemStack item = FurnitureItemFactory.create(plugin, definition, 1);
         var leftovers = player.getInventory().addItem(item);
@@ -118,17 +118,13 @@ public final class FurnitureManager {
         pdc.set(plugin.ownerKey(), PersistentDataType.STRING, ownerId);
     }
 
-    private ItemDisplay findDisplay(Location center, String instanceId) {
-        for (Entity nearby : center.getWorld().getNearbyEntities(center, 2.5D, 2.5D, 2.5D)) {
-            if (!(nearby instanceof ItemDisplay display)) {
-                continue;
-            }
-            String candidate = display.getPersistentDataContainer().get(plugin.instanceIdKey(), PersistentDataType.STRING);
+    private void removeInstance(Location center, String instanceId) {
+        for (Entity nearby : center.getWorld().getNearbyEntities(center, 3.0D, 3.0D, 3.0D)) {
+            String candidate = nearby.getPersistentDataContainer().get(plugin.instanceIdKey(), PersistentDataType.STRING);
             if (instanceId.equals(candidate)) {
-                return display;
+                nearby.remove();
             }
         }
-        return null;
     }
 
     private Location applyVisualOffset(Location anchor, FurnitureDefinition definition, float yaw) {
