@@ -24,15 +24,20 @@ public final class FurnitureManager {
     }
 
     public boolean place(Player player, FurnitureDefinition definition, Location base, EquipmentSlot hand) {
-        Location location = base.clone().add(0.5D, 0.01D, 0.5D);
         float yaw = snapYaw(player.getLocation().getYaw());
-        location.setYaw(yaw);
+
+        Location anchorLocation = base.clone().add(0.5D, 0.0D, 0.5D);
+        anchorLocation.setYaw(yaw);
+
+        Location displayLocation = applyVisualOffset(anchorLocation, definition, yaw);
+        displayLocation.setYaw(yaw);
+
         String instanceId = UUID.randomUUID().toString();
         String ownerId = player.getUniqueId().toString();
 
         ItemStack displayItem = FurnitureItemFactory.create(plugin, definition, 1);
 
-        ItemDisplay display = location.getWorld().spawn(location, ItemDisplay.class, entity -> {
+        ItemDisplay display = displayLocation.getWorld().spawn(displayLocation, ItemDisplay.class, entity -> {
             entity.setPersistent(true);
             entity.setItemStack(displayItem);
             entity.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);
@@ -41,7 +46,7 @@ public final class FurnitureManager {
             tagEntity(entity, definition.id(), instanceId, ownerId);
         });
 
-        Interaction interaction = location.getWorld().spawn(location, Interaction.class, entity -> {
+        Interaction interaction = anchorLocation.getWorld().spawn(anchorLocation, Interaction.class, entity -> {
             entity.setPersistent(true);
             entity.setInteractionWidth(definition.hitboxWidth());
             entity.setInteractionHeight(definition.hitboxHeight());
@@ -57,7 +62,11 @@ public final class FurnitureManager {
         }
 
         if (plugin.getConfig().getBoolean("debug.log-placements", false)) {
-            plugin.getLogger().info(player.getName() + " placed " + definition.id() + " instance=" + instanceId);
+            plugin.getLogger().info(player.getName() + " placed " + definition.id()
+                    + " instance=" + instanceId
+                    + " visualOffset=(" + definition.visualOffsetX() + ", "
+                    + definition.visualOffsetY() + ", "
+                    + definition.visualOffsetZ() + ")");
         }
         return true;
     }
@@ -120,6 +129,20 @@ public final class FurnitureManager {
             }
         }
         return null;
+    }
+
+    private Location applyVisualOffset(Location anchor, FurnitureDefinition definition, float yaw) {
+        double radians = Math.toRadians(yaw);
+        double cos = Math.cos(radians);
+        double sin = Math.sin(radians);
+
+        double localX = definition.visualOffsetX();
+        double localZ = definition.visualOffsetZ();
+
+        double worldX = (localX * cos) - (localZ * sin);
+        double worldZ = (localX * sin) + (localZ * cos);
+
+        return anchor.clone().add(worldX, definition.visualOffsetY(), worldZ);
     }
 
     private float snapYaw(float yaw) {
