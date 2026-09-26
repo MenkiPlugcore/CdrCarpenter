@@ -18,6 +18,14 @@ furniture:
         x: 0.0
         y: 0.0
         z: 0.0
+    seat:
+      enabled: true
+      offset:
+        x: 0.0
+        y: 0.55
+        z: 0.0
+      yaw-offset: 0.0
+      can-rotate: false
     hitbox:
       width: 1.00
       height: 1.55
