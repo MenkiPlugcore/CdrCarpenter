@@ -14,9 +14,13 @@ public final class FurnitureItemFactory {
     }
 
     public static ItemStack create(CdrCarpenter plugin, FurnitureDefinition definition, int amount) {
-        ItemStack item = new ItemStack(definition.material(), Math.max(1, amount));
-        ItemMeta meta = item.getItemMeta();
+        ItemStack item = plugin.itemsAdderBridge().createItem(definition.itemsAdderId(), amount);
+        boolean itemsAdderItem = item != null;
+        if (!itemsAdderItem) {
+            item = new ItemStack(definition.material(), Math.max(1, amount));
+        }
 
+        ItemMeta meta = item.getItemMeta();
         meta.displayName(Component.text(definition.displayName(), NamedTextColor.GOLD));
         meta.lore(List.of(
                 Component.text("CdrCarpenter Furniture", NamedTextColor.DARK_GRAY),
@@ -24,7 +28,7 @@ public final class FurnitureItemFactory {
                 Component.text("Sneak + right-click to pick up", NamedTextColor.GRAY)
         ));
 
-        if (definition.customModelData() > 0) {
+        if (!itemsAdderItem && definition.customModelData() > 0) {
             var customModelData = meta.getCustomModelDataComponent();
             customModelData.setFloats(List.of((float) definition.customModelData()));
             meta.setCustomModelDataComponent(customModelData);
