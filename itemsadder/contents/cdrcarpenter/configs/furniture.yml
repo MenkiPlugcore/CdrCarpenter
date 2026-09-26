@@ -1,0 +1,9 @@
+info:
+  namespace: cdrcarpenter
+
+items:
+  chair:
+    name: "Oak Chair"
+    material: PAPER
+    graphics:
+      model: furniture/chair
