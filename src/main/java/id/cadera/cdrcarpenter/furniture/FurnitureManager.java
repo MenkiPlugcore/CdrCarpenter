@@ -3,6 +3,7 @@ package id.cadera.cdrcarpenter.furniture;
 import id.cadera.cdrcarpenter.CdrCarpenter;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Interaction;
 import org.bukkit.entity.ItemDisplay;
@@ -24,6 +25,11 @@ public final class FurnitureManager {
     }
 
     public boolean place(Player player, FurnitureDefinition definition, Location base, EquipmentSlot hand) {
+        if (definition.barrierCollision() && !base.getBlock().isPassable()) {
+            player.sendMessage("§cThere is not enough room to place furniture there.");
+            return false;
+        }
+
         float yaw = snapYaw(player.getLocation().getYaw());
 
         Location anchorLocation = base.clone().add(0.5D, 0.0D, 0.5D);
@@ -57,6 +63,10 @@ public final class FurnitureManager {
         display.setPersistent(true);
         interaction.setPersistent(true);
 
+        if (definition.barrierCollision()) {
+            base.getBlock().setType(Material.BARRIER, false);
+        }
+
         if (player.getGameMode() != GameMode.CREATIVE) {
             consumeOne(player, hand);
         }
@@ -64,6 +74,7 @@ public final class FurnitureManager {
         if (plugin.getConfig().getBoolean("debug.log-placements", false)) {
             plugin.getLogger().info(player.getName() + " placed " + definition.id()
                     + " instance=" + instanceId
+                    + " barrier=" + definition.barrierCollision()
                     + " visualOffset=(" + definition.visualOffsetX() + ", "
                     + definition.visualOffsetY() + ", "
                     + definition.visualOffsetZ() + ")");
@@ -97,13 +108,35 @@ public final class FurnitureManager {
             return true;
         }
 
-        removeInstance(furnitureEntity.getLocation(), instanceId);
+        Location barrierLocation = removeInstance(furnitureEntity.getLocation(), instanceId);
+        if (definition.barrierCollision() && barrierLocation != null
+                && barrierLocation.getBlock().getType() == Material.BARRIER) {
+            barrierLocation.getBlock().setType(Material.AIR, false);
+        }
 
         ItemStack item = FurnitureItemFactory.create(plugin, definition, 1);
         var leftovers = player.getInventory().addItem(item);
         leftovers.values().forEach(leftover -> player.getWorld().dropItemNaturally(player.getLocation(), leftover));
         player.sendMessage("§aPicked up §f" + definition.displayName() + "§a.");
         return true;
+    }
+
+    public Interaction findFurnitureAtBarrier(Location blockLocation) {
+        Location center = blockLocation.clone().add(0.5D, 0.5D, 0.5D);
+        Interaction nearest = null;
+        double nearestDistance = Double.MAX_VALUE;
+
+        for (Entity nearby : center.getWorld().getNearbyEntities(center, 0.8D, 1.5D, 0.8D)) {
+            if (!(nearby instanceof Interaction interaction) || !isFurnitureEntity(interaction)) {
+                continue;
+            }
+            double distance = interaction.getLocation().distanceSquared(center);
+            if (distance < nearestDistance) {
+                nearest = interaction;
+                nearestDistance = distance;
+            }
+        }
+        return nearest;
     }
 
     public boolean isFurnitureEntity(Entity entity) {
@@ -118,13 +151,19 @@ public final class FurnitureManager {
         pdc.set(plugin.ownerKey(), PersistentDataType.STRING, ownerId);
     }
 
-    private void removeInstance(Location center, String instanceId) {
+    private Location removeInstance(Location center, String instanceId) {
+        Location interactionBlock = null;
         for (Entity nearby : center.getWorld().getNearbyEntities(center, 3.0D, 3.0D, 3.0D)) {
             String candidate = nearby.getPersistentDataContainer().get(plugin.instanceIdKey(), PersistentDataType.STRING);
-            if (instanceId.equals(candidate)) {
-                nearby.remove();
+            if (!instanceId.equals(candidate)) {
+                continue;
             }
+            if (nearby instanceof Interaction) {
+                interactionBlock = nearby.getLocation().getBlock().getLocation();
+            }
+            nearby.remove();
         }
+        return interactionBlock;
     }
 
     private Location applyVisualOffset(Location anchor, FurnitureDefinition definition, float yaw) {
