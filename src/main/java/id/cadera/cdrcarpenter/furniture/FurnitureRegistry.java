@@ -90,6 +90,7 @@ public final class FurnitureRegistry {
             double collisionOffsetX = section.getDouble("collision.offset.x", 0.0D);
             double collisionOffsetY = section.getDouble("collision.offset.y", 0.0D);
             double collisionOffsetZ = section.getDouble("collision.offset.z", 0.0D);
+            boolean collisionStandable = section.getBoolean("collision.standable", !id.equals("chair"));
 
             if (!section.isSet("collision.mode")) {
                 section.set("collision.mode", collisionMode.name());
@@ -124,6 +125,10 @@ public final class FurnitureRegistry {
                     section.set("collision.offset.z", collisionOffsetZ);
                     migrated = true;
                 }
+                if (!section.isSet("collision.standable")) {
+                    section.set("collision.standable", collisionStandable);
+                    migrated = true;
+                }
             }
 
             definitions.put(id, new FurnitureDefinition(
@@ -143,14 +148,15 @@ public final class FurnitureRegistry {
                     collisionHeight,
                     collisionOffsetX,
                     collisionOffsetY,
-                    collisionOffsetZ
+                    collisionOffsetZ,
+                    collisionStandable
             ));
         }
 
         if (migrated) {
             try {
                 yaml.save(file);
-                plugin.getLogger().info("Migrated furniture.yml to the v0.1.3 collision format.");
+                plugin.getLogger().info("Migrated furniture.yml to the latest collision format.");
             } catch (IOException ex) {
                 plugin.getLogger().warning("Could not save migrated furniture.yml: " + ex.getMessage());
             }
