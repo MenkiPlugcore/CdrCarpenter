@@ -1,0 +1,43 @@
+name: Import ItemsAdder assets
+
+on:
+  push:
+    paths:
+      - 'itemsadder/contents/cdrcarpenter/textures/**/*.b64'
+      - '.github/workflows/import-itemsadder-assets.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Decode and verify chair texture
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC='itemsadder/contents/cdrcarpenter/textures/furniture/chair.png.b64'
+          DST='itemsadder/contents/cdrcarpenter/textures/furniture/chair.png'
+          if [ -f "$SRC" ]; then
+            base64 -d "$SRC" > "$DST"
+            echo 'fc8ec53b7f7aae2be21468cd890c4a5b8a72f2db24fe0867d259809fd5e5abb3  '"$DST" | sha256sum -c -
+            rm "$SRC"
+          fi
+
+      - name: Commit imported asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A itemsadder/contents/cdrcarpenter/textures
+          if git diff --cached --quiet; then
+            echo 'No binary asset changes.'
+            exit 0
+          fi
+          git commit -m 'assets: import ItemsAdder chair texture'
+          git push
