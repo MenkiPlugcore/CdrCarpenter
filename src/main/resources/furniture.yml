@@ -3,6 +3,7 @@ furniture:
     display-name: "Oak Chair"
     material: PAPER
     custom-model-data: 1001
+    itemsadder-id: "cdrcarpenter:chair"
     hitbox:
       width: 0.80
       height: 1.05
@@ -11,6 +12,7 @@ furniture:
     display-name: "Oak Table"
     material: PAPER
     custom-model-data: 1002
+    itemsadder-id: "cdrcarpenter:table"
     hitbox:
       width: 1.00
       height: 1.05
@@ -19,6 +21,7 @@ furniture:
     display-name: "Bookshelf"
     material: PAPER
     custom-model-data: 1003
+    itemsadder-id: "cdrcarpenter:bookshelf"
     hitbox:
       width: 0.95
       height: 1.80
@@ -27,6 +30,7 @@ furniture:
     display-name: "Carpenter Workbench"
     material: PAPER
     custom-model-data: 1004
+    itemsadder-id: "cdrcarpenter:workbench"
     hitbox:
       width: 1.00
       height: 1.05
@@ -35,6 +39,7 @@ furniture:
     display-name: "Table Saw"
     material: PAPER
     custom-model-data: 1005
+    itemsadder-id: "cdrcarpenter:sawmill"
     hitbox:
       width: 1.00
       height: 1.05
