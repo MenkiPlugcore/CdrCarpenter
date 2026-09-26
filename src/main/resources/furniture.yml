@@ -1,16 +1,18 @@
 furniture:
   chair:
-    display-name: "Oak Chair"
+    display-name: "Comfy Dinner Chair"
     material: PAPER
     custom-model-data: 1001
     itemsadder-id: "cdrcarpenter:chair"
     visual-offset:
       x: 0.0
-      y: -0.18
+      y: 0.0
       z: 0.0
+    collision:
+      barrier: true
     hitbox:
-      width: 0.80
-      height: 1.05
+      width: 1.00
+      height: 1.55
 
   table:
     display-name: "Oak Table"
@@ -21,6 +23,8 @@ furniture:
       x: 0.0
       y: 0.0
       z: 0.0
+    collision:
+      barrier: false
     hitbox:
       width: 1.00
       height: 1.05
@@ -34,6 +38,8 @@ furniture:
       x: 0.0
       y: 0.0
       z: 0.0
+    collision:
+      barrier: false
     hitbox:
       width: 0.95
       height: 1.80
@@ -47,6 +53,8 @@ furniture:
       x: 0.0
       y: 0.0
       z: 0.0
+    collision:
+      barrier: false
     hitbox:
       width: 1.00
       height: 1.05
@@ -60,6 +68,8 @@ furniture:
       x: 0.0
       y: 0.0
       z: 0.0
+    collision:
+      barrier: false
     hitbox:
       width: 1.00
       height: 1.05
