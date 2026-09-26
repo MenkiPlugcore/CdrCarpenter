@@ -20,6 +20,12 @@ public record FurnitureDefinition(
         double collisionOffsetX,
         double collisionOffsetY,
         double collisionOffsetZ,
-        boolean collisionStandable
+        boolean collisionStandable,
+        boolean seatEnabled,
+        double seatOffsetX,
+        double seatOffsetY,
+        double seatOffsetZ,
+        float seatYawOffset,
+        boolean seatCanRotate
 ) {
 }
