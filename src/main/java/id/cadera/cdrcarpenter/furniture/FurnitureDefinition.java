@@ -13,6 +13,12 @@ public record FurnitureDefinition(
         double visualOffsetX,
         double visualOffsetY,
         double visualOffsetZ,
-        boolean barrierCollision
+        FurnitureCollisionMode collisionMode,
+        double collisionWidth,
+        double collisionDepth,
+        double collisionHeight,
+        double collisionOffsetX,
+        double collisionOffsetY,
+        double collisionOffsetZ
 ) {
 }
