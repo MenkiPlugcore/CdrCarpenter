@@ -13,6 +13,8 @@ import java.util.Locale;
 import java.util.Map;
 
 public final class FurnitureRegistry {
+    private static final int CONFIG_VERSION = 2;
+
     private final CdrCarpenter plugin;
     private final Map<String, FurnitureDefinition> definitions = new LinkedHashMap<>();
 
@@ -31,7 +33,7 @@ public final class FurnitureRegistry {
             return;
         }
 
-        boolean migrated = false;
+        boolean migrated = migrateConfig(yaml, root);
 
         for (String rawId : root.getKeys(false)) {
             String id = rawId.toLowerCase(Locale.ROOT);
@@ -54,18 +56,26 @@ public final class FurnitureRegistry {
                 itemsAdderId = null;
             }
 
-            float hitboxWidth = (float) section.getDouble("hitbox.width", 1.0D);
-            float hitboxHeight = (float) section.getDouble("hitbox.height", 1.0D);
+            double defaultHitboxWidth = id.equals("table") ? 2.0D : 1.0D;
+            double defaultHitboxHeight = id.equals("table") ? 1.10D : 1.0D;
+            float hitboxWidth = (float) section.getDouble("hitbox.width", defaultHitboxWidth);
+            float hitboxHeight = (float) section.getDouble("hitbox.height", defaultHitboxHeight);
             hitboxWidth = Math.max(0.1F, Math.min(hitboxWidth, 4.0F));
             hitboxHeight = Math.max(0.1F, Math.min(hitboxHeight, 4.0F));
 
+            double defaultHitboxOffsetX = id.equals("table") ? 0.50D : 0.0D;
+            double defaultHitboxOffsetZ = id.equals("table") ? -0.50D : 0.0D;
+            double hitboxOffsetX = section.getDouble("hitbox.offset.x", defaultHitboxOffsetX);
+            double hitboxOffsetY = section.getDouble("hitbox.offset.y", 0.0D);
+            double hitboxOffsetZ = section.getDouble("hitbox.offset.z", defaultHitboxOffsetZ);
+
             double visualOffsetX = section.getDouble("visual-offset.x", 0.0D);
-            double defaultVisualOffsetY = id.equals("chair") ? 0.55D : 0.0D;
+            double defaultVisualOffsetY = id.equals("chair") ? 0.55D : (id.equals("table") ? 0.50D : 0.0D);
             double visualOffsetY = section.getDouble("visual-offset.y", defaultVisualOffsetY);
             double visualOffsetZ = section.getDouble("visual-offset.z", 0.0D);
 
             FurnitureCollisionMode defaultMode;
-            if (id.equals("chair")) {
+            if (id.equals("chair") || id.equals("table")) {
                 defaultMode = FurnitureCollisionMode.CUSTOM;
             } else if (section.getBoolean("collision.barrier", false)) {
                 defaultMode = FurnitureCollisionMode.BARRIER;
@@ -80,9 +90,9 @@ public final class FurnitureRegistry {
                         + "'. Using " + collisionMode.name() + ".");
             }
 
-            double defaultCollisionWidth = id.equals("chair") ? 0.85D : 1.0D;
-            double defaultCollisionDepth = id.equals("chair") ? 0.85D : 1.0D;
-            double defaultCollisionHeight = id.equals("chair") ? 0.58D : 1.0D;
+            double defaultCollisionWidth = id.equals("chair") ? 0.85D : (id.equals("table") ? 2.0D : 1.0D);
+            double defaultCollisionDepth = id.equals("chair") ? 0.85D : (id.equals("table") ? 2.0D : 1.0D);
+            double defaultCollisionHeight = id.equals("chair") ? 0.58D : (id.equals("table") ? 1.0D : 1.0D);
 
             double collisionWidth = clamp(section.getDouble("collision.width", defaultCollisionWidth), 0.10D, 4.0D);
             double collisionDepth = clamp(section.getDouble("collision.depth", defaultCollisionDepth), 0.10D, 4.0D);
@@ -138,6 +148,19 @@ public final class FurnitureRegistry {
                 }
             }
 
+            if (!section.isSet("hitbox.offset.x")) {
+                section.set("hitbox.offset.x", hitboxOffsetX);
+                migrated = true;
+            }
+            if (!section.isSet("hitbox.offset.y")) {
+                section.set("hitbox.offset.y", hitboxOffsetY);
+                migrated = true;
+            }
+            if (!section.isSet("hitbox.offset.z")) {
+                section.set("hitbox.offset.z", hitboxOffsetZ);
+                migrated = true;
+            }
+
             if (id.equals("chair") || section.isConfigurationSection("seat") || section.isSet("seat.enabled")) {
                 if (!section.isSet("seat.enabled")) {
                     section.set("seat.enabled", seatEnabled);
@@ -173,6 +196,9 @@ public final class FurnitureRegistry {
                     itemsAdderId,
                     hitboxWidth,
                     hitboxHeight,
+                    hitboxOffsetX,
+                    hitboxOffsetY,
+                    hitboxOffsetZ,
                     visualOffsetX,
                     visualOffsetY,
                     visualOffsetZ,
@@ -196,11 +222,55 @@ public final class FurnitureRegistry {
         if (migrated) {
             try {
                 yaml.save(file);
-                plugin.getLogger().info("Migrated furniture.yml to the latest collision/seating format.");
+                plugin.getLogger().info("Migrated furniture.yml to config version " + CONFIG_VERSION + ".");
             } catch (IOException ex) {
                 plugin.getLogger().warning("Could not save migrated furniture.yml: " + ex.getMessage());
             }
         }
+    }
+
+    private boolean migrateConfig(YamlConfiguration yaml, ConfigurationSection root) {
+        int currentVersion = yaml.getInt("config-version", 1);
+        if (currentVersion >= CONFIG_VERSION) {
+            return false;
+        }
+
+        boolean changed = false;
+
+        if (currentVersion < 2) {
+            ConfigurationSection table = root.getConfigurationSection("table");
+            if (table != null) {
+                table.set("display-name", "Comfy Dinner Table");
+                table.set("itemsadder-id", "cdrcarpenter:table");
+
+                table.set("visual-offset.x", 0.0D);
+                table.set("visual-offset.y", 0.50D);
+                table.set("visual-offset.z", 0.0D);
+
+                table.set("collision.mode", "CUSTOM");
+                table.set("collision.width", 2.0D);
+                table.set("collision.depth", 2.0D);
+                table.set("collision.height", 1.0D);
+                table.set("collision.standable", true);
+                table.set("collision.offset.x", 0.0D);
+                table.set("collision.offset.y", 0.0D);
+                table.set("collision.offset.z", 0.0D);
+
+                table.set("hitbox.width", 2.0D);
+                table.set("hitbox.height", 1.10D);
+                table.set("hitbox.offset.x", 0.50D);
+                table.set("hitbox.offset.y", 0.0D);
+                table.set("hitbox.offset.z", -0.50D);
+
+                table.set("seat.enabled", false);
+                changed = true;
+            }
+
+            yaml.set("config-version", 2);
+            changed = true;
+        }
+
+        return changed;
     }
 
     public FurnitureDefinition get(String id) {
