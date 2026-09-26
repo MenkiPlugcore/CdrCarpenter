@@ -3,6 +3,7 @@ package id.cadera.cdrcarpenter;
 import id.cadera.cdrcarpenter.command.CarpenterCommand;
 import id.cadera.cdrcarpenter.furniture.FurnitureManager;
 import id.cadera.cdrcarpenter.furniture.FurnitureRegistry;
+import id.cadera.cdrcarpenter.integration.ItemsAdderBridge;
 import id.cadera.cdrcarpenter.listener.FurnitureListener;
 import org.bukkit.NamespacedKey;
 import org.bukkit.command.PluginCommand;
@@ -16,6 +17,7 @@ public final class CdrCarpenter extends JavaPlugin {
 
     private FurnitureRegistry furnitureRegistry;
     private FurnitureManager furnitureManager;
+    private ItemsAdderBridge itemsAdderBridge;
 
     @Override
     public void onEnable() {
@@ -27,6 +29,7 @@ public final class CdrCarpenter extends JavaPlugin {
         instanceIdKey = new NamespacedKey(this, "instance_id");
         ownerKey = new NamespacedKey(this, "owner");
 
+        itemsAdderBridge = new ItemsAdderBridge(this);
         furnitureRegistry = new FurnitureRegistry(this);
         furnitureRegistry.load();
         furnitureManager = new FurnitureManager(this, furnitureRegistry);
@@ -44,12 +47,17 @@ public final class CdrCarpenter extends JavaPlugin {
         boolean gsit = getServer().getPluginManager().isPluginEnabled("GSit");
         getLogger().info("CdrCarpenter v" + getPluginMeta().getVersion() + " enabled.");
         getLogger().info("Loaded " + furnitureRegistry.size() + " furniture definitions.");
+        getLogger().info("ItemsAdder: " + (itemsAdderBridge.isAvailable() ? "detected - custom item rendering enabled" : "not detected - vanilla fallback enabled"));
         getLogger().info("GSit: " + (gsit ? "detected (seat integration reserved for a later phase)" : "not detected"));
     }
 
     public void reloadPlugin() {
         reloadConfig();
         furnitureRegistry.load();
+    }
+
+    public ItemsAdderBridge itemsAdderBridge() {
+        return itemsAdderBridge;
     }
 
     public NamespacedKey furnitureItemKey() {
