@@ -1,7 +1,8 @@
-# CdrCarpenter v0.1.0
+# CdrCarpenter v0.1.1-hotfix3
 placement:
   snap-rotation-degrees: 90
   pickup-requires-sneak: true
+  left-click-pickup: true
   owner-only-pickup: true
 
 debug:
