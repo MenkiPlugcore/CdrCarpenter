@@ -7,6 +7,7 @@ import id.cadera.cdrcarpenter.furniture.FurnitureManager;
 import id.cadera.cdrcarpenter.furniture.FurnitureRegistry;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Interaction;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -74,8 +75,15 @@ public final class FurnitureListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onFurnitureDamage(EntityDamageByEntityEvent event) {
-        if (manager.isFurnitureEntity(event.getEntity())) {
-            event.setCancelled(true);
+        if (!manager.isFurnitureEntity(event.getEntity())) {
+            return;
+        }
+
+        event.setCancelled(true);
+
+        if (event.getDamager() instanceof Player player
+                && plugin.getConfig().getBoolean("placement.left-click-pickup", true)) {
+            manager.pickup(player, event.getEntity());
         }
     }
 }
