@@ -5,6 +5,7 @@ import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
+import org.bukkit.block.Block;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Interaction;
 import org.bukkit.entity.ItemDisplay;
@@ -20,6 +21,8 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class FurnitureManager {
+    private static final double BOX_EPSILON = 0.001D;
+
     private final CdrCarpenter plugin;
     private final FurnitureRegistry registry;
     private final Set<UUID> collisionBypass = ConcurrentHashMap.newKeySet();
@@ -30,15 +33,30 @@ public final class FurnitureManager {
     }
 
     public boolean place(Player player, FurnitureDefinition definition, Location base, EquipmentSlot hand) {
+        float yaw = snapYaw(player.getLocation().getYaw());
+
+        Location anchorLocation = base.clone().add(0.5D, 0.0D, 0.5D);
+        anchorLocation.setYaw(yaw);
+
+        Location interactionLocation = applyLocalOffset(
+                anchorLocation,
+                definition.hitboxOffsetX(),
+                definition.hitboxOffsetY(),
+                definition.hitboxOffsetZ(),
+                yaw
+        );
+        interactionLocation.setYaw(yaw);
+
         if (definition.collisionMode() == FurnitureCollisionMode.BARRIER && !base.getBlock().isPassable()) {
             player.sendMessage("§cThere is not enough room to place furniture there.");
             return false;
         }
 
-        float yaw = snapYaw(player.getLocation().getYaw());
-
-        Location anchorLocation = base.clone().add(0.5D, 0.0D, 0.5D);
-        anchorLocation.setYaw(yaw);
+        if (definition.collisionMode() == FurnitureCollisionMode.CUSTOM
+                && !canPlaceCustomCollision(interactionLocation, definition, yaw)) {
+            player.sendMessage("§cThere is not enough room for this furniture footprint.");
+            return false;
+        }
 
         Location displayLocation = applyVisualOffset(anchorLocation, definition, yaw);
         displayLocation.setYaw(yaw);
@@ -57,7 +75,7 @@ public final class FurnitureManager {
             tagEntity(entity, definition.id(), instanceId, ownerId);
         });
 
-        Interaction interaction = anchorLocation.getWorld().spawn(anchorLocation, Interaction.class, entity -> {
+        Interaction interaction = interactionLocation.getWorld().spawn(interactionLocation, Interaction.class, entity -> {
             entity.setPersistent(true);
             entity.setInteractionWidth(definition.hitboxWidth());
             entity.setInteractionHeight(definition.hitboxHeight());
@@ -83,7 +101,10 @@ public final class FurnitureManager {
                     + " collision=" + definition.collisionMode().name()
                     + " visualOffset=(" + definition.visualOffsetX() + ", "
                     + definition.visualOffsetY() + ", "
-                    + definition.visualOffsetZ() + ")");
+                    + definition.visualOffsetZ() + ")"
+                    + " hitboxOffset=(" + definition.hitboxOffsetX() + ", "
+                    + definition.hitboxOffsetY() + ", "
+                    + definition.hitboxOffsetZ() + ")");
         }
         return true;
     }
@@ -115,7 +136,6 @@ public final class FurnitureManager {
         }
 
         Location formerAnchor = removeInstance(furnitureEntity.getLocation(), instanceId);
-        // Upgrade-safe cleanup: remove legacy barrier even if the furniture is now CUSTOM/NONE.
         if (formerAnchor != null && formerAnchor.getBlock().getType() == Material.BARRIER) {
             formerAnchor.getBlock().setType(Material.AIR, false);
         }
@@ -154,9 +174,12 @@ public final class FurnitureManager {
     }
 
     public BoundingBox customCollisionBox(Interaction interaction, FurnitureDefinition definition) {
-        float yaw = interaction.getLocation().getYaw();
+        return customCollisionBox(interaction.getLocation(), definition, interaction.getLocation().getYaw());
+    }
+
+    private BoundingBox customCollisionBox(Location interactionLocation, FurnitureDefinition definition, float yaw) {
         Location center = applyLocalOffset(
-                interaction.getLocation(),
+                interactionLocation,
                 definition.collisionOffsetX(),
                 definition.collisionOffsetY(),
                 definition.collisionOffsetZ(),
@@ -180,6 +203,59 @@ public final class FurnitureManager {
                 center.getY() + definition.collisionHeight(),
                 center.getZ() + (depth / 2.0D)
         );
+    }
+
+    private boolean canPlaceCustomCollision(Location interactionLocation, FurnitureDefinition definition, float yaw) {
+        BoundingBox proposed = customCollisionBox(interactionLocation, definition, yaw);
+        World world = interactionLocation.getWorld();
+        if (world == null) {
+            return false;
+        }
+
+        int minX = (int) Math.floor(proposed.getMinX() + BOX_EPSILON);
+        int maxX = (int) Math.floor(proposed.getMaxX() - BOX_EPSILON);
+        int minY = (int) Math.floor(proposed.getMinY() + BOX_EPSILON);
+        int maxY = (int) Math.floor(proposed.getMaxY() - BOX_EPSILON);
+        int minZ = (int) Math.floor(proposed.getMinZ() + BOX_EPSILON);
+        int maxZ = (int) Math.floor(proposed.getMaxZ() - BOX_EPSILON);
+
+        for (int x = minX; x <= maxX; x++) {
+            for (int y = minY; y <= maxY; y++) {
+                for (int z = minZ; z <= maxZ; z++) {
+                    Block block = world.getBlockAt(x, y, z);
+                    if (!block.isPassable()) {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        double radiusX = Math.max(2.5D, definition.collisionWidth() + 1.0D);
+        double radiusY = Math.max(2.5D, definition.collisionHeight() + 1.0D);
+        double radiusZ = Math.max(2.5D, definition.collisionDepth() + 1.0D);
+        for (Entity nearby : world.getNearbyEntities(interactionLocation, radiusX, radiusY, radiusZ)) {
+            if (!(nearby instanceof Interaction interaction) || !isFurnitureEntity(interaction)) {
+                continue;
+            }
+            FurnitureDefinition other = definitionFor(interaction);
+            if (other == null || other.collisionMode() != FurnitureCollisionMode.CUSTOM) {
+                continue;
+            }
+            if (overlaps(proposed, customCollisionBox(interaction, other))) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private boolean overlaps(BoundingBox a, BoundingBox b) {
+        return a.getMaxX() > b.getMinX() + BOX_EPSILON
+                && a.getMinX() < b.getMaxX() - BOX_EPSILON
+                && a.getMaxY() > b.getMinY() + BOX_EPSILON
+                && a.getMinY() < b.getMaxY() - BOX_EPSILON
+                && a.getMaxZ() > b.getMinZ() + BOX_EPSILON
+                && a.getMinZ() < b.getMaxZ() - BOX_EPSILON;
     }
 
     public void reconcileCollisions() {
@@ -234,7 +310,7 @@ public final class FurnitureManager {
 
     private Location removeInstance(Location center, String instanceId) {
         Location interactionBlock = null;
-        for (Entity nearby : center.getWorld().getNearbyEntities(center, 3.0D, 3.0D, 3.0D)) {
+        for (Entity nearby : center.getWorld().getNearbyEntities(center, 4.0D, 3.0D, 4.0D)) {
             String candidate = nearby.getPersistentDataContainer().get(plugin.instanceIdKey(), PersistentDataType.STRING);
             if (!instanceId.equals(candidate)) {
                 continue;
