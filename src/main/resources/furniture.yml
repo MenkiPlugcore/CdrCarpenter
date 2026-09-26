@@ -13,6 +13,7 @@ furniture:
       width: 0.85
       depth: 0.85
       height: 0.58
+      standable: false
       offset:
         x: 0.0
         y: 0.0
