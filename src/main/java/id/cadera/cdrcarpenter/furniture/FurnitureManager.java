@@ -1,0 +1,145 @@
+package id.cadera.cdrcarpenter.furniture;
+
+import id.cadera.cdrcarpenter.CdrCarpenter;
+import org.bukkit.GameMode;
+import org.bukkit.Location;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.Interaction;
+import org.bukkit.entity.ItemDisplay;
+import org.bukkit.entity.Player;
+import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.persistence.PersistentDataContainer;
+import org.bukkit.persistence.PersistentDataType;
+
+import java.util.UUID;
+
+public final class FurnitureManager {
+    private final CdrCarpenter plugin;
+    private final FurnitureRegistry registry;
+
+    public FurnitureManager(CdrCarpenter plugin, FurnitureRegistry registry) {
+        this.plugin = plugin;
+        this.registry = registry;
+    }
+
+    public boolean place(Player player, FurnitureDefinition definition, Location base, EquipmentSlot hand) {
+        Location location = base.clone().add(0.5D, 0.01D, 0.5D);
+        float yaw = snapYaw(player.getLocation().getYaw());
+        location.setYaw(yaw);
+        String instanceId = UUID.randomUUID().toString();
+        String ownerId = player.getUniqueId().toString();
+
+        ItemStack displayItem = FurnitureItemFactory.create(plugin, definition, 1);
+
+        ItemDisplay display = location.getWorld().spawn(location, ItemDisplay.class, entity -> {
+            entity.setPersistent(true);
+            entity.setItemStack(displayItem);
+            entity.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);
+            entity.setBillboard(org.bukkit.entity.Display.Billboard.FIXED);
+            entity.setRotation(yaw, 0.0F);
+            tagEntity(entity, definition.id(), instanceId, ownerId);
+        });
+
+        Interaction interaction = location.getWorld().spawn(location, Interaction.class, entity -> {
+            entity.setPersistent(true);
+            entity.setInteractionWidth(definition.hitboxWidth());
+            entity.setInteractionHeight(definition.hitboxHeight());
+            entity.setResponsive(true);
+            tagEntity(entity, definition.id(), instanceId, ownerId);
+        });
+
+        display.setPersistent(true);
+        interaction.setPersistent(true);
+
+        if (player.getGameMode() != GameMode.CREATIVE) {
+            consumeOne(player, hand);
+        }
+
+        if (plugin.getConfig().getBoolean("debug.log-placements", false)) {
+            plugin.getLogger().info(player.getName() + " placed " + definition.id() + " instance=" + instanceId);
+        }
+        return true;
+    }
+
+    public boolean pickup(Player player, Interaction interaction) {
+        PersistentDataContainer pdc = interaction.getPersistentDataContainer();
+        String furnitureId = pdc.get(plugin.furnitureIdKey(), PersistentDataType.STRING);
+        String instanceId = pdc.get(plugin.instanceIdKey(), PersistentDataType.STRING);
+        String ownerId = pdc.get(plugin.ownerKey(), PersistentDataType.STRING);
+        if (furnitureId == null || instanceId == null) {
+            return false;
+        }
+
+        if (plugin.getConfig().getBoolean("placement.owner-only-pickup", true)
+                && !player.hasPermission("cdrcarpenter.admin")
+                && !player.getUniqueId().toString().equals(ownerId)) {
+            player.sendMessage("§cOnly the furniture owner can pick this up.");
+            return true;
+        }
+
+        FurnitureDefinition definition = registry.get(furnitureId);
+        if (definition == null) {
+            player.sendMessage("§cFurniture definition '" + furnitureId + "' is missing.");
+            return true;
+        }
+
+        ItemDisplay display = findDisplay(interaction.getLocation(), instanceId);
+        if (display != null) {
+            display.remove();
+        }
+        interaction.remove();
+
+        ItemStack item = FurnitureItemFactory.create(plugin, definition, 1);
+        var leftovers = player.getInventory().addItem(item);
+        leftovers.values().forEach(leftover -> player.getWorld().dropItemNaturally(player.getLocation(), leftover));
+        player.sendMessage("§aPicked up §f" + definition.displayName() + "§a.");
+        return true;
+    }
+
+    public boolean isFurnitureEntity(Entity entity) {
+        return entity.getPersistentDataContainer().has(plugin.instanceIdKey(), PersistentDataType.STRING)
+                && entity.getPersistentDataContainer().has(plugin.furnitureIdKey(), PersistentDataType.STRING);
+    }
+
+    private void tagEntity(Entity entity, String furnitureId, String instanceId, String ownerId) {
+        PersistentDataContainer pdc = entity.getPersistentDataContainer();
+        pdc.set(plugin.furnitureIdKey(), PersistentDataType.STRING, furnitureId);
+        pdc.set(plugin.instanceIdKey(), PersistentDataType.STRING, instanceId);
+        pdc.set(plugin.ownerKey(), PersistentDataType.STRING, ownerId);
+    }
+
+    private ItemDisplay findDisplay(Location center, String instanceId) {
+        for (Entity nearby : center.getWorld().getNearbyEntities(center, 2.5D, 2.5D, 2.5D)) {
+            if (!(nearby instanceof ItemDisplay display)) {
+                continue;
+            }
+            String candidate = display.getPersistentDataContainer().get(plugin.instanceIdKey(), PersistentDataType.STRING);
+            if (instanceId.equals(candidate)) {
+                return display;
+            }
+        }
+        return null;
+    }
+
+    private float snapYaw(float yaw) {
+        int snap = Math.max(1, plugin.getConfig().getInt("placement.snap-rotation-degrees", 90));
+        return Math.round(yaw / snap) * snap;
+    }
+
+    private void consumeOne(Player player, EquipmentSlot hand) {
+        ItemStack held = hand == EquipmentSlot.OFF_HAND
+                ? player.getInventory().getItemInOffHand()
+                : player.getInventory().getItemInMainHand();
+
+        if (held.getAmount() <= 1) {
+            if (hand == EquipmentSlot.OFF_HAND) {
+                player.getInventory().setItemInOffHand(null);
+            } else {
+                player.getInventory().setItemInMainHand(null);
+            }
+        } else {
+            held.setAmount(held.getAmount() - 1);
+        }
+    }
+}
