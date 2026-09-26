@@ -18,6 +18,7 @@ import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.inventory.EquipmentSlot;
 
 public final class FurnitureListener implements Listener {
     private final CdrCarpenter plugin;
@@ -93,6 +94,9 @@ public final class FurnitureListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onInteract(PlayerInteractEntityEvent event) {
+        if (event.getHand() != EquipmentSlot.HAND) {
+            return;
+        }
         if (!(event.getRightClicked() instanceof Interaction interaction) || !manager.isFurnitureEntity(interaction)) {
             return;
         }
