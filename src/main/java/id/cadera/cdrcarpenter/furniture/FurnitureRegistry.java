@@ -56,8 +56,9 @@ public final class FurnitureRegistry {
             width = Math.max(0.1F, Math.min(width, 4.0F));
             height = Math.max(0.1F, Math.min(height, 4.0F));
 
+            double defaultOffsetY = id.equals("chair") ? -0.18D : 0.0D;
             double offsetX = section.getDouble("visual-offset.x", 0.0D);
-            double offsetY = section.getDouble("visual-offset.y", 0.0D);
+            double offsetY = section.getDouble("visual-offset.y", defaultOffsetY);
             double offsetZ = section.getDouble("visual-offset.z", 0.0D);
 
             definitions.put(id, new FurnitureDefinition(
