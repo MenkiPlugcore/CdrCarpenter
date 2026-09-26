@@ -92,6 +92,13 @@ public final class FurnitureRegistry {
             double collisionOffsetZ = section.getDouble("collision.offset.z", 0.0D);
             boolean collisionStandable = section.getBoolean("collision.standable", !id.equals("chair"));
 
+            boolean seatEnabled = section.getBoolean("seat.enabled", id.equals("chair"));
+            double seatOffsetX = section.getDouble("seat.offset.x", 0.0D);
+            double seatOffsetY = section.getDouble("seat.offset.y", id.equals("chair") ? 0.55D : 0.0D);
+            double seatOffsetZ = section.getDouble("seat.offset.z", 0.0D);
+            float seatYawOffset = (float) section.getDouble("seat.yaw-offset", 0.0D);
+            boolean seatCanRotate = section.getBoolean("seat.can-rotate", false);
+
             if (!section.isSet("collision.mode")) {
                 section.set("collision.mode", collisionMode.name());
                 migrated = true;
@@ -131,6 +138,33 @@ public final class FurnitureRegistry {
                 }
             }
 
+            if (id.equals("chair") || section.isConfigurationSection("seat") || section.isSet("seat.enabled")) {
+                if (!section.isSet("seat.enabled")) {
+                    section.set("seat.enabled", seatEnabled);
+                    migrated = true;
+                }
+                if (!section.isSet("seat.offset.x")) {
+                    section.set("seat.offset.x", seatOffsetX);
+                    migrated = true;
+                }
+                if (!section.isSet("seat.offset.y")) {
+                    section.set("seat.offset.y", seatOffsetY);
+                    migrated = true;
+                }
+                if (!section.isSet("seat.offset.z")) {
+                    section.set("seat.offset.z", seatOffsetZ);
+                    migrated = true;
+                }
+                if (!section.isSet("seat.yaw-offset")) {
+                    section.set("seat.yaw-offset", seatYawOffset);
+                    migrated = true;
+                }
+                if (!section.isSet("seat.can-rotate")) {
+                    section.set("seat.can-rotate", seatCanRotate);
+                    migrated = true;
+                }
+            }
+
             definitions.put(id, new FurnitureDefinition(
                     id,
                     displayName,
@@ -149,14 +183,20 @@ public final class FurnitureRegistry {
                     collisionOffsetX,
                     collisionOffsetY,
                     collisionOffsetZ,
-                    collisionStandable
+                    collisionStandable,
+                    seatEnabled,
+                    seatOffsetX,
+                    seatOffsetY,
+                    seatOffsetZ,
+                    seatYawOffset,
+                    seatCanRotate
             ));
         }
 
         if (migrated) {
             try {
                 yaml.save(file);
-                plugin.getLogger().info("Migrated furniture.yml to the latest collision format.");
+                plugin.getLogger().info("Migrated furniture.yml to the latest collision/seating format.");
             } catch (IOException ex) {
                 plugin.getLogger().warning("Could not save migrated furniture.yml: " + ex.getMessage());
             }
