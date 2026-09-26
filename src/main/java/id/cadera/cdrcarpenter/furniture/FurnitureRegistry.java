@@ -46,7 +46,7 @@ public final class FurnitureRegistry {
             }
 
             int customModelData = section.getInt("custom-model-data", 0);
-            String itemsAdderId = section.getString("itemsadder-id", "").trim();
+            String itemsAdderId = section.getString("itemsadder-id", "cdrcarpenter:" + id).trim();
             if (itemsAdderId.isEmpty()) {
                 itemsAdderId = null;
             }
