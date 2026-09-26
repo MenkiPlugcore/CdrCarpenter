@@ -3,9 +3,11 @@ package id.cadera.cdrcarpenter;
 import id.cadera.cdrcarpenter.command.CarpenterCommand;
 import id.cadera.cdrcarpenter.furniture.FurnitureManager;
 import id.cadera.cdrcarpenter.furniture.FurnitureRegistry;
+import id.cadera.cdrcarpenter.integration.GSitBridge;
 import id.cadera.cdrcarpenter.integration.ItemsAdderBridge;
 import id.cadera.cdrcarpenter.listener.CustomCollisionListener;
 import id.cadera.cdrcarpenter.listener.FurnitureListener;
+import id.cadera.cdrcarpenter.seating.SeatingManager;
 import org.bukkit.NamespacedKey;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -19,6 +21,8 @@ public final class CdrCarpenter extends JavaPlugin {
     private FurnitureRegistry furnitureRegistry;
     private FurnitureManager furnitureManager;
     private ItemsAdderBridge itemsAdderBridge;
+    private GSitBridge gsitBridge;
+    private SeatingManager seatingManager;
 
     @Override
     public void onEnable() {
@@ -34,9 +38,16 @@ public final class CdrCarpenter extends JavaPlugin {
         furnitureRegistry = new FurnitureRegistry(this);
         furnitureRegistry.load();
         furnitureManager = new FurnitureManager(this, furnitureRegistry);
+        gsitBridge = new GSitBridge(this);
+        seatingManager = new SeatingManager(this, furnitureManager, gsitBridge);
 
-        getServer().getPluginManager().registerEvents(new FurnitureListener(this, furnitureManager, furnitureRegistry), this);
+        getServer().getPluginManager().registerEvents(
+                new FurnitureListener(this, furnitureManager, furnitureRegistry, seatingManager),
+                this
+        );
         getServer().getPluginManager().registerEvents(new CustomCollisionListener(furnitureManager), this);
+        getServer().getPluginManager().registerEvents(seatingManager, this);
+        seatingManager.start();
 
         CarpenterCommand command = new CarpenterCommand(this, furnitureRegistry, furnitureManager);
         PluginCommand pluginCommand = getCommand("carpenter");
@@ -48,11 +59,17 @@ public final class CdrCarpenter extends JavaPlugin {
 
         getServer().getScheduler().runTask(this, furnitureManager::reconcileCollisions);
 
-        boolean gsit = getServer().getPluginManager().isPluginEnabled("GSit");
         getLogger().info("CdrCarpenter v" + getPluginMeta().getVersion() + " enabled.");
         getLogger().info("Loaded " + furnitureRegistry.size() + " furniture definitions.");
         getLogger().info("ItemsAdder: " + (itemsAdderBridge.isAvailable() ? "detected - custom item rendering enabled" : "not detected - vanilla fallback enabled"));
-        getLogger().info("GSit: " + (gsit ? "detected (seat integration reserved for a later phase)" : "not detected"));
+        getLogger().info("GSit: " + (gsitBridge.isAvailable() ? "detected - chair seating enabled" : "not detected/unsupported - seating disabled"));
+    }
+
+    @Override
+    public void onDisable() {
+        if (seatingManager != null) {
+            seatingManager.shutdown();
+        }
     }
 
     public void reloadPlugin() {
