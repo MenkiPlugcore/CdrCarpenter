@@ -4,6 +4,10 @@ furniture:
     material: PAPER
     custom-model-data: 1001
     itemsadder-id: "cdrcarpenter:chair"
+    visual-offset:
+      x: 0.0
+      y: -0.18
+      z: 0.0
     hitbox:
       width: 0.80
       height: 1.05
@@ -13,6 +17,10 @@ furniture:
     material: PAPER
     custom-model-data: 1002
     itemsadder-id: "cdrcarpenter:table"
+    visual-offset:
+      x: 0.0
+      y: 0.0
+      z: 0.0
     hitbox:
       width: 1.00
       height: 1.05
@@ -22,6 +30,10 @@ furniture:
     material: PAPER
     custom-model-data: 1003
     itemsadder-id: "cdrcarpenter:bookshelf"
+    visual-offset:
+      x: 0.0
+      y: 0.0
+      z: 0.0
     hitbox:
       width: 0.95
       height: 1.80
@@ -31,6 +43,10 @@ furniture:
     material: PAPER
     custom-model-data: 1004
     itemsadder-id: "cdrcarpenter:workbench"
+    visual-offset:
+      x: 0.0
+      y: 0.0
+      z: 0.0
     hitbox:
       width: 1.00
       height: 1.05
@@ -40,6 +56,10 @@ furniture:
     material: PAPER
     custom-model-data: 1005
     itemsadder-id: "cdrcarpenter:sawmill"
+    visual-offset:
+      x: 0.0
+      y: 0.0
+      z: 0.0
     hitbox:
       width: 1.00
       height: 1.05
