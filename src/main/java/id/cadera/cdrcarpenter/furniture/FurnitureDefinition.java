@@ -9,6 +9,9 @@ public record FurnitureDefinition(
         int customModelData,
         String itemsAdderId,
         float hitboxWidth,
-        float hitboxHeight
+        float hitboxHeight,
+        double visualOffsetX,
+        double visualOffsetY,
+        double visualOffsetZ
 ) {
 }
