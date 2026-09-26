@@ -7,6 +7,7 @@ public record FurnitureDefinition(
         String displayName,
         Material material,
         int customModelData,
+        String itemsAdderId,
         float hitboxWidth,
         float hitboxHeight
 ) {
