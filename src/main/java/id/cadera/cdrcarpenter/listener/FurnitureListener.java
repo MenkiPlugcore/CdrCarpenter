@@ -5,6 +5,7 @@ import id.cadera.cdrcarpenter.furniture.FurnitureDefinition;
 import id.cadera.cdrcarpenter.furniture.FurnitureItemFactory;
 import id.cadera.cdrcarpenter.furniture.FurnitureManager;
 import id.cadera.cdrcarpenter.furniture.FurnitureRegistry;
+import id.cadera.cdrcarpenter.seating.SeatingManager;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Interaction;
@@ -22,11 +23,13 @@ public final class FurnitureListener implements Listener {
     private final CdrCarpenter plugin;
     private final FurnitureManager manager;
     private final FurnitureRegistry registry;
+    private final SeatingManager seating;
 
-    public FurnitureListener(CdrCarpenter plugin, FurnitureManager manager, FurnitureRegistry registry) {
+    public FurnitureListener(CdrCarpenter plugin, FurnitureManager manager, FurnitureRegistry registry, SeatingManager seating) {
         this.plugin = plugin;
         this.manager = manager;
         this.registry = registry;
+        this.seating = seating;
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
@@ -37,14 +40,13 @@ public final class FurnitureListener implements Listener {
 
         Block clicked = event.getClickedBlock();
 
-        // Barrier-backed furniture intercepts the client's block ray trace before the display entity.
         if (clicked.getType() == Material.BARRIER) {
             Interaction furniture = manager.findFurnitureAtBarrier(clicked.getLocation());
             if (furniture != null) {
                 if (event.getAction() == Action.LEFT_CLICK_BLOCK) {
                     event.setCancelled(true);
                     if (plugin.getConfig().getBoolean("placement.left-click-pickup", true)) {
-                        manager.pickup(event.getPlayer(), furniture);
+                        pickupIfFree(event.getPlayer(), furniture);
                     }
                     return;
                 }
@@ -53,9 +55,10 @@ public final class FurnitureListener implements Listener {
                     event.setCancelled(true);
                     boolean requireSneak = plugin.getConfig().getBoolean("placement.pickup-requires-sneak", true);
                     if (!requireSneak || event.getPlayer().isSneaking()) {
-                        manager.pickup(event.getPlayer(), furniture);
+                        pickupIfFree(event.getPlayer(), furniture);
+                    } else {
+                        seating.sit(event.getPlayer(), furniture);
                     }
-                    // Non-sneak right click is reserved for the seat/workstation interaction phase.
                     return;
                 }
             }
@@ -95,13 +98,15 @@ public final class FurnitureListener implements Listener {
         }
 
         boolean requireSneak = plugin.getConfig().getBoolean("placement.pickup-requires-sneak", true);
-        if (requireSneak && !event.getPlayer().isSneaking()) {
-            // Reserved for future chair/workbench/sawmill interactions.
+        if (!requireSneak || event.getPlayer().isSneaking()) {
+            event.setCancelled(true);
+            pickupIfFree(event.getPlayer(), interaction);
             return;
         }
 
-        event.setCancelled(true);
-        manager.pickup(event.getPlayer(), interaction);
+        if (seating.sit(event.getPlayer(), interaction)) {
+            event.setCancelled(true);
+        }
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -113,8 +118,9 @@ public final class FurnitureListener implements Listener {
         event.setCancelled(true);
 
         if (event.getDamager() instanceof Player player
-                && plugin.getConfig().getBoolean("placement.left-click-pickup", true)) {
-            manager.pickup(player, event.getEntity());
+                && plugin.getConfig().getBoolean("placement.left-click-pickup", true)
+                && event.getEntity() instanceof Interaction interaction) {
+            pickupIfFree(player, interaction);
         }
     }
 
@@ -130,6 +136,14 @@ public final class FurnitureListener implements Listener {
         }
 
         event.setCancelled(true);
-        manager.pickup(event.getPlayer(), furniture);
+        pickupIfFree(event.getPlayer(), furniture);
+    }
+
+    private void pickupIfFree(Player player, Interaction interaction) {
+        if (seating.isOccupied(interaction)) {
+            player.sendMessage("§eSomeone is sitting on this furniture.");
+            return;
+        }
+        manager.pickup(player, interaction);
     }
 }
