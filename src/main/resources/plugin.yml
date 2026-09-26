@@ -1,0 +1,21 @@
+name: CdrCarpenter
+version: ${version}
+main: id.cadera.cdrcarpenter.CdrCarpenter
+api-version: '1.21.11'
+author: Cadera
+website: https://github.com/MenkiPlugcore/CdrCarpenter
+description: Furniture and carpenter gameplay core for Paper 1.21.11.
+softdepend:
+  - GSit
+commands:
+  carpenter:
+    description: Main CdrCarpenter command.
+    usage: /carpenter <give|list|reload>
+    aliases: [cdrchair, cdrcarpenter]
+permissions:
+  cdrcarpenter.use:
+    description: Allows normal CdrCarpenter interactions.
+    default: true
+  cdrcarpenter.admin:
+    description: Allows CdrCarpenter administration commands and ownership bypass.
+    default: op
