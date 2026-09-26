@@ -46,12 +46,17 @@ public final class FurnitureRegistry {
             }
 
             int customModelData = section.getInt("custom-model-data", 0);
+            String itemsAdderId = section.getString("itemsadder-id", "").trim();
+            if (itemsAdderId.isEmpty()) {
+                itemsAdderId = null;
+            }
+
             float width = (float) section.getDouble("hitbox.width", 1.0D);
             float height = (float) section.getDouble("hitbox.height", 1.0D);
             width = Math.max(0.1F, Math.min(width, 4.0F));
             height = Math.max(0.1F, Math.min(height, 4.0F));
 
-            definitions.put(id, new FurnitureDefinition(id, displayName, material, customModelData, width, height));
+            definitions.put(id, new FurnitureDefinition(id, displayName, material, customModelData, itemsAdderId, width, height));
         }
     }
 
