@@ -1,0 +1,8 @@
+# CdrCarpenter v0.1.0
+placement:
+  snap-rotation-degrees: 90
+  pickup-requires-sneak: true
+  owner-only-pickup: true
+
+debug:
+  log-placements: false
