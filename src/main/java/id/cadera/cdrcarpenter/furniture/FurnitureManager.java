@@ -4,6 +4,7 @@ import id.cadera.cdrcarpenter.CdrCarpenter;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.World;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Interaction;
 import org.bukkit.entity.ItemDisplay;
@@ -12,12 +13,16 @@ import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.util.BoundingBox;
 
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class FurnitureManager {
     private final CdrCarpenter plugin;
     private final FurnitureRegistry registry;
+    private final Set<UUID> collisionBypass = ConcurrentHashMap.newKeySet();
 
     public FurnitureManager(CdrCarpenter plugin, FurnitureRegistry registry) {
         this.plugin = plugin;
@@ -25,7 +30,7 @@ public final class FurnitureManager {
     }
 
     public boolean place(Player player, FurnitureDefinition definition, Location base, EquipmentSlot hand) {
-        if (definition.barrierCollision() && !base.getBlock().isPassable()) {
+        if (definition.collisionMode() == FurnitureCollisionMode.BARRIER && !base.getBlock().isPassable()) {
             player.sendMessage("§cThere is not enough room to place furniture there.");
             return false;
         }
@@ -57,13 +62,14 @@ public final class FurnitureManager {
             entity.setInteractionWidth(definition.hitboxWidth());
             entity.setInteractionHeight(definition.hitboxHeight());
             entity.setResponsive(true);
+            entity.setRotation(yaw, 0.0F);
             tagEntity(entity, definition.id(), instanceId, ownerId);
         });
 
         display.setPersistent(true);
         interaction.setPersistent(true);
 
-        if (definition.barrierCollision()) {
+        if (definition.collisionMode() == FurnitureCollisionMode.BARRIER) {
             base.getBlock().setType(Material.BARRIER, false);
         }
 
@@ -74,7 +80,7 @@ public final class FurnitureManager {
         if (plugin.getConfig().getBoolean("debug.log-placements", false)) {
             plugin.getLogger().info(player.getName() + " placed " + definition.id()
                     + " instance=" + instanceId
-                    + " barrier=" + definition.barrierCollision()
+                    + " collision=" + definition.collisionMode().name()
                     + " visualOffset=(" + definition.visualOffsetX() + ", "
                     + definition.visualOffsetY() + ", "
                     + definition.visualOffsetZ() + ")");
@@ -108,10 +114,10 @@ public final class FurnitureManager {
             return true;
         }
 
-        Location barrierLocation = removeInstance(furnitureEntity.getLocation(), instanceId);
-        if (definition.barrierCollision() && barrierLocation != null
-                && barrierLocation.getBlock().getType() == Material.BARRIER) {
-            barrierLocation.getBlock().setType(Material.AIR, false);
+        Location formerAnchor = removeInstance(furnitureEntity.getLocation(), instanceId);
+        // Upgrade-safe cleanup: remove legacy barrier even if the furniture is now CUSTOM/NONE.
+        if (formerAnchor != null && formerAnchor.getBlock().getType() == Material.BARRIER) {
+            formerAnchor.getBlock().setType(Material.AIR, false);
         }
 
         ItemStack item = FurnitureItemFactory.create(plugin, definition, 1);
@@ -139,9 +145,84 @@ public final class FurnitureManager {
         return nearest;
     }
 
+    public FurnitureDefinition definitionFor(Entity entity) {
+        if (!isFurnitureEntity(entity)) {
+            return null;
+        }
+        String id = entity.getPersistentDataContainer().get(plugin.furnitureIdKey(), PersistentDataType.STRING);
+        return registry.get(id);
+    }
+
+    public BoundingBox customCollisionBox(Interaction interaction, FurnitureDefinition definition) {
+        float yaw = interaction.getLocation().getYaw();
+        Location center = applyLocalOffset(
+                interaction.getLocation(),
+                definition.collisionOffsetX(),
+                definition.collisionOffsetY(),
+                definition.collisionOffsetZ(),
+                yaw
+        );
+
+        int quarterTurns = Math.floorMod(Math.round(yaw / 90.0F), 4);
+        double width = definition.collisionWidth();
+        double depth = definition.collisionDepth();
+        if ((quarterTurns & 1) == 1) {
+            double tmp = width;
+            width = depth;
+            depth = tmp;
+        }
+
+        return new BoundingBox(
+                center.getX() - (width / 2.0D),
+                center.getY(),
+                center.getZ() - (depth / 2.0D),
+                center.getX() + (width / 2.0D),
+                center.getY() + definition.collisionHeight(),
+                center.getZ() + (depth / 2.0D)
+        );
+    }
+
+    public void reconcileCollisions() {
+        for (World world : plugin.getServer().getWorlds()) {
+            for (Interaction interaction : world.getEntitiesByClass(Interaction.class)) {
+                if (!isFurnitureEntity(interaction)) {
+                    continue;
+                }
+                FurnitureDefinition definition = definitionFor(interaction);
+                if (definition == null) {
+                    continue;
+                }
+
+                var block = interaction.getLocation().getBlock();
+                if (definition.collisionMode() == FurnitureCollisionMode.BARRIER) {
+                    if (block.getType() != Material.BARRIER && block.isPassable()) {
+                        block.setType(Material.BARRIER, false);
+                    }
+                } else if (block.getType() == Material.BARRIER) {
+                    block.setType(Material.AIR, false);
+                }
+
+                interaction.setInteractionWidth(definition.hitboxWidth());
+                interaction.setInteractionHeight(definition.hitboxHeight());
+            }
+        }
+    }
+
     public boolean isFurnitureEntity(Entity entity) {
         return entity.getPersistentDataContainer().has(plugin.instanceIdKey(), PersistentDataType.STRING)
                 && entity.getPersistentDataContainer().has(plugin.furnitureIdKey(), PersistentDataType.STRING);
+    }
+
+    public boolean isCollisionBypassed(Player player) {
+        return collisionBypass.contains(player.getUniqueId());
+    }
+
+    public void setCollisionBypass(Player player, boolean bypass) {
+        if (bypass) {
+            collisionBypass.add(player.getUniqueId());
+        } else {
+            collisionBypass.remove(player.getUniqueId());
+        }
     }
 
     private void tagEntity(Entity entity, String furnitureId, String instanceId, String ownerId) {
@@ -167,17 +248,18 @@ public final class FurnitureManager {
     }
 
     private Location applyVisualOffset(Location anchor, FurnitureDefinition definition, float yaw) {
+        return applyLocalOffset(anchor, definition.visualOffsetX(), definition.visualOffsetY(), definition.visualOffsetZ(), yaw);
+    }
+
+    private Location applyLocalOffset(Location anchor, double localX, double localY, double localZ, float yaw) {
         double radians = Math.toRadians(yaw);
         double cos = Math.cos(radians);
         double sin = Math.sin(radians);
 
-        double localX = definition.visualOffsetX();
-        double localZ = definition.visualOffsetZ();
-
         double worldX = (localX * cos) - (localZ * sin);
         double worldZ = (localX * sin) + (localZ * cos);
 
-        return anchor.clone().add(worldX, definition.visualOffsetY(), worldZ);
+        return anchor.clone().add(worldX, localY, worldZ);
     }
 
     private float snapYaw(float yaw) {
