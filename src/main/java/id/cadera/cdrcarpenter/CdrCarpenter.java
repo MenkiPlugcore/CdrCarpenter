@@ -62,7 +62,7 @@ public final class CdrCarpenter extends JavaPlugin {
         getLogger().info("CdrCarpenter v" + getPluginMeta().getVersion() + " enabled.");
         getLogger().info("Loaded " + furnitureRegistry.size() + " furniture definitions.");
         getLogger().info("ItemsAdder: " + (itemsAdderBridge.isAvailable() ? "detected - custom item rendering enabled" : "not detected - vanilla fallback enabled"));
-        getLogger().info("GSit: " + (gsitBridge.isAvailable() ? "detected - chair seating enabled" : "not detected/unsupported - seating disabled"));
+        getLogger().info("GSit: " + gsitBridge.statusDescription());
     }
 
     @Override
