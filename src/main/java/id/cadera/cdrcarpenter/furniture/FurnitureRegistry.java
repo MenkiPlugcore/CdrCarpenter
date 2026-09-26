@@ -56,7 +56,22 @@ public final class FurnitureRegistry {
             width = Math.max(0.1F, Math.min(width, 4.0F));
             height = Math.max(0.1F, Math.min(height, 4.0F));
 
-            definitions.put(id, new FurnitureDefinition(id, displayName, material, customModelData, itemsAdderId, width, height));
+            double offsetX = section.getDouble("visual-offset.x", 0.0D);
+            double offsetY = section.getDouble("visual-offset.y", 0.0D);
+            double offsetZ = section.getDouble("visual-offset.z", 0.0D);
+
+            definitions.put(id, new FurnitureDefinition(
+                    id,
+                    displayName,
+                    material,
+                    customModelData,
+                    itemsAdderId,
+                    width,
+                    height,
+                    offsetX,
+                    offsetY,
+                    offsetZ
+            ));
         }
     }
 
