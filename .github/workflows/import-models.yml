@@ -1,0 +1,50 @@
+name: Import source models
+
+on:
+  push:
+    paths:
+      - '.model-import/**'
+      - '.github/workflows/import-models.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Restore and verify Blockbench source files
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p models/source
+
+          restore() {
+            local name="$1"
+            local sha="$2"
+            base64 -d ".model-import/${name}.gz.b64" | gzip -d > "models/source/${name}"
+            echo "${sha}  models/source/${name}" | sha256sum -c -
+          }
+
+          restore old-chair.bbmodel 8404882883503ee3056506d908fd51cfc730a4d498ec205012f3c7f503cd5f67
+          restore old-table.bbmodel cd8d0554b19a3b29b01837a291bd7000f639697fcfe637021b53ea4e00ff889b
+          restore old-shelf.bbmodel 35603f0ed846336e3bb0f5429905fa4e330ed3f358be97e57fc2b3a7d6fcf8f9
+          restore old-workbench.bbmodel 6e3af6e527366c412fd78231dca60358104ddee3e4a924778e9dd631f1834bff
+          restore table-saw.bbmodel 6cde4dc0700d2843c04149d123b4e136f2a09b3051a1a9b4fba68004eab6c0e5
+
+      - name: Commit exact source models
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add models/source
+          if git diff --cached --quiet; then
+            echo 'Source models already match.'
+            exit 0
+          fi
+          git commit -m 'assets: archive original Blockbench source models'
+          git push
