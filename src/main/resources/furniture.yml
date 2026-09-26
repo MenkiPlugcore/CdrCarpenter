@@ -1,3 +1,5 @@
+config-version: 2
+
 furniture:
   chair:
     display-name: "Comfy Dinner Chair"
@@ -29,21 +31,39 @@ furniture:
     hitbox:
       width: 1.00
       height: 1.55
+      offset:
+        x: 0.0
+        y: 0.0
+        z: 0.0
 
   table:
-    display-name: "Oak Table"
+    display-name: "Comfy Dinner Table"
     material: PAPER
     custom-model-data: 1002
     itemsadder-id: "cdrcarpenter:table"
     visual-offset:
       x: 0.0
-      y: 0.0
+      y: 0.50
       z: 0.0
     collision:
-      mode: NONE
+      mode: CUSTOM
+      width: 2.0
+      depth: 2.0
+      height: 1.0
+      standable: true
+      offset:
+        x: 0.0
+        y: 0.0
+        z: 0.0
+    seat:
+      enabled: false
     hitbox:
-      width: 1.00
-      height: 1.05
+      width: 2.0
+      height: 1.10
+      offset:
+        x: 0.50
+        y: 0.0
+        z: -0.50
 
   bookshelf:
     display-name: "Bookshelf"
@@ -59,6 +79,10 @@ furniture:
     hitbox:
       width: 0.95
       height: 1.80
+      offset:
+        x: 0.0
+        y: 0.0
+        z: 0.0
 
   workbench:
     display-name: "Carpenter Workbench"
@@ -74,6 +98,10 @@ furniture:
     hitbox:
       width: 1.00
       height: 1.05
+      offset:
+        x: 0.0
+        y: 0.0
+        z: 0.0
 
   sawmill:
     display-name: "Table Saw"
@@ -89,3 +117,7 @@ furniture:
     hitbox:
       width: 1.00
       height: 1.05
+      offset:
+        x: 0.0
+        y: 0.0
+        z: 0.0
