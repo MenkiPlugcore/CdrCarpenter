@@ -56,10 +56,12 @@ public final class FurnitureRegistry {
             width = Math.max(0.1F, Math.min(width, 4.0F));
             height = Math.max(0.1F, Math.min(height, 4.0F));
 
-            double defaultOffsetY = id.equals("chair") ? -0.18D : 0.0D;
             double offsetX = section.getDouble("visual-offset.x", 0.0D);
-            double offsetY = section.getDouble("visual-offset.y", defaultOffsetY);
+            double offsetY = section.getDouble("visual-offset.y", 0.0D);
             double offsetZ = section.getDouble("visual-offset.z", 0.0D);
+
+            // Chair defaults to a vanilla barrier collision for upgrade safety.
+            boolean barrierCollision = section.getBoolean("collision.barrier", id.equals("chair"));
 
             definitions.put(id, new FurnitureDefinition(
                     id,
@@ -71,7 +73,8 @@ public final class FurnitureRegistry {
                     height,
                     offsetX,
                     offsetY,
-                    offsetZ
+                    offsetZ,
+                    barrierCollision
             ));
         }
     }
