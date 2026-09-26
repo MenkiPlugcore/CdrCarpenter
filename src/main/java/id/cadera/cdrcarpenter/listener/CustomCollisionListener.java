@@ -15,7 +15,7 @@ import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.util.BoundingBox;
 
 public final class CustomCollisionListener implements Listener {
-    private static final double EPSILON = 0.0001D;
+    private static final double EPSILON = 0.002D;
     private static final double LANDING_TOLERANCE = 0.12D;
 
     private final FurnitureManager manager;
@@ -48,6 +48,8 @@ public final class CustomCollisionListener implements Listener {
         double playerWidthX = Math.max(0.20D, live.getWidthX());
         double playerWidthZ = Math.max(0.20D, live.getWidthZ());
         double playerHeight = Math.max(0.20D, live.getHeight());
+        double halfX = playerWidthX / 2.0D;
+        double halfZ = playerWidthZ / 2.0D;
 
         for (Entity entity : to.getWorld().getNearbyEntities(to, 4.5D, 3.5D, 4.5D)) {
             if (!(entity instanceof Interaction interaction) || !manager.isFurnitureEntity(interaction)) {
@@ -67,16 +69,12 @@ public final class CustomCollisionListener implements Listener {
                 continue;
             }
 
-            // If a player somehow starts inside a box (reload, teleport, old placement), let them escape.
-            if (overlaps(currentBox, furniture)) {
-                continue;
-            }
-
             double deltaY = adjusted.getY() - from.getY();
             boolean horizontalOverlap = overlapsXZ(nextBox, furniture);
 
-            // Landing on top of a custom box: snap feet onto the configured top surface.
-            if (deltaY <= 0.0D
+            // Optional top surface. Chairs default to standable=false so movement never rubber-bands on the seat.
+            if (definition.collisionStandable()
+                    && deltaY <= 0.0D
                     && horizontalOverlap
                     && currentBox.getMinY() >= furniture.getMaxY() - LANDING_TOLERANCE
                     && nextBox.getMinY() < furniture.getMaxY()) {
@@ -86,32 +84,16 @@ public final class CustomCollisionListener implements Listener {
                 continue;
             }
 
-            // Side collision. Resolve X/Z separately so the player can slide along the furniture.
-            Location xOnly = adjusted.clone();
-            xOnly.setZ(from.getZ());
-            Location zOnly = adjusted.clone();
-            zOnly.setX(from.getX());
-
-            boolean xSafe = !overlaps(playerBox(xOnly, playerWidthX, playerWidthZ, playerHeight), furniture);
-            boolean zSafe = !overlaps(playerBox(zOnly, playerWidthX, playerWidthZ, playerHeight), furniture);
-
-            double dx = adjusted.getX() - from.getX();
-            double dz = adjusted.getZ() - from.getZ();
-
-            if (xSafe && zSafe) {
-                if (Math.abs(dx) >= Math.abs(dz)) {
-                    adjusted.setZ(from.getZ());
-                } else {
-                    adjusted.setX(from.getX());
-                }
-            } else if (xSafe) {
-                adjusted.setZ(from.getZ());
-            } else if (zSafe) {
-                adjusted.setX(from.getX());
-            } else {
-                adjusted.setX(from.getX());
-                adjusted.setZ(from.getZ());
+            // If a player is already intersecting the box, eject them to the nearest horizontal side.
+            // This handles reloads, teleports, config changes, and prevents permanent soft-locks.
+            if (overlaps(currentBox, furniture)) {
+                pushOutNearest(adjusted, furniture, halfX, halfZ);
+                changed = true;
+                continue;
             }
+
+            // Normal side collision: resolve to the nearest legal edge instead of cancelling movement.
+            pushOutNearest(adjusted, furniture, halfX, halfZ);
             changed = true;
         }
 
@@ -119,6 +101,29 @@ public final class CustomCollisionListener implements Listener {
             adjusted.setYaw(to.getYaw());
             adjusted.setPitch(to.getPitch());
             event.setTo(adjusted);
+        }
+    }
+
+    private void pushOutNearest(Location location, BoundingBox furniture, double halfX, double halfZ) {
+        double left = furniture.getMinX() - halfX - EPSILON;
+        double right = furniture.getMaxX() + halfX + EPSILON;
+        double back = furniture.getMinZ() - halfZ - EPSILON;
+        double front = furniture.getMaxZ() + halfZ + EPSILON;
+
+        double dLeft = Math.abs(location.getX() - left);
+        double dRight = Math.abs(location.getX() - right);
+        double dBack = Math.abs(location.getZ() - back);
+        double dFront = Math.abs(location.getZ() - front);
+
+        double min = Math.min(Math.min(dLeft, dRight), Math.min(dBack, dFront));
+        if (min == dLeft) {
+            location.setX(left);
+        } else if (min == dRight) {
+            location.setX(right);
+        } else if (min == dBack) {
+            location.setZ(back);
+        } else {
+            location.setZ(front);
         }
     }
 
