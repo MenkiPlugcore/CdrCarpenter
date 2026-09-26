@@ -12,6 +12,7 @@ public record FurnitureDefinition(
         float hitboxHeight,
         double visualOffsetX,
         double visualOffsetY,
-        double visualOffsetZ
+        double visualOffsetZ,
+        boolean barrierCollision
 ) {
 }
