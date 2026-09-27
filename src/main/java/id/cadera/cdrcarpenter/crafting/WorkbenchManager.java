@@ -5,6 +5,7 @@ import id.cadera.cdrcarpenter.furniture.FurnitureDefinition;
 import id.cadera.cdrcarpenter.furniture.FurnitureItemFactory;
 import id.cadera.cdrcarpenter.furniture.FurnitureManager;
 import id.cadera.cdrcarpenter.furniture.FurnitureRegistry;
+import id.cadera.cdrcarpenter.material.CarpenterMaterialFactory;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
@@ -23,8 +24,8 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
@@ -36,9 +37,11 @@ import java.util.Set;
 import java.util.UUID;
 
 public final class WorkbenchManager implements Listener {
+    private static final int CONFIG_VERSION = 2;
     private static final List<Integer> DEFAULT_RECIPE_SLOTS = List.of(2, 4, 6);
     private static final List<Integer> DEFAULT_INPUT_SLOTS = List.of(10, 12, 14);
     private static final int DEFAULT_RESULT_SLOT = 16;
+    private static final String PROCESSED_WOOD_KEY = "cdr:processed_wood";
 
     private final CdrCarpenter plugin;
     private final FurnitureManager furnitureManager;
@@ -71,7 +74,6 @@ public final class WorkbenchManager implements Listener {
         if (instanceId == null) {
             return false;
         }
-
         if (recipes.isEmpty()) {
             player.sendMessage("§cNo Carpenter Workbench recipes are configured.");
             return true;
@@ -80,7 +82,6 @@ public final class WorkbenchManager implements Listener {
         Inventory inventory = Bukkit.createInventory(null, rows * 9, title);
         Session session = new Session(instanceId, recipes.getFirst().id());
         sessions.put(inventory, session);
-
         renderFrame(inventory);
         renderSelectors(inventory, session);
         updateResult(inventory, session);
@@ -93,12 +94,8 @@ public final class WorkbenchManager implements Listener {
         if (instanceId == null) {
             return null;
         }
-
         for (Map.Entry<Inventory, Session> entry : sessions.entrySet()) {
-            if (!entry.getValue().instanceId().equals(instanceId)) {
-                continue;
-            }
-            if (!entry.getKey().getViewers().isEmpty()) {
+            if (entry.getValue().instanceId().equals(instanceId) && !entry.getKey().getViewers().isEmpty()) {
                 return "§eSomeone is using this Carpenter Workbench.";
             }
         }
@@ -116,9 +113,10 @@ public final class WorkbenchManager implements Listener {
 
     private void loadConfig() {
         YamlConfiguration config = YamlConfiguration.loadConfiguration(configFile);
+        migrateConfig(config);
+
         rows = Math.max(1, Math.min(config.getInt("gui.rows", 3), 6));
         int size = rows * 9;
-
         title = config.getString("gui.title", "Carpenter Workbench");
         if (title == null || title.isBlank()) {
             title = "Carpenter Workbench";
@@ -128,7 +126,6 @@ public final class WorkbenchManager implements Listener {
         if (recipeSlots.isEmpty()) {
             recipeSlots = sanitizeSlots(DEFAULT_RECIPE_SLOTS, size);
         }
-
         inputSlots = sanitizeSlots(config.getIntegerList("gui.input-slots"), size);
         if (inputSlots.isEmpty()) {
             inputSlots = sanitizeSlots(DEFAULT_INPUT_SLOTS, size);
@@ -151,19 +148,13 @@ public final class WorkbenchManager implements Listener {
             if (section == null) {
                 continue;
             }
-
             String id = rawId.toLowerCase(Locale.ROOT);
             String output = section.getString("output", id);
-            if (output == null || output.isBlank()) {
-                plugin.getLogger().warning("Skipping workbench recipe '" + id + "': output is missing.");
+            if (output == null || output.isBlank() || registry.get(output.toLowerCase(Locale.ROOT)) == null) {
+                plugin.getLogger().warning("Skipping workbench recipe '" + id + "': invalid furniture output.");
                 continue;
             }
             output = output.toLowerCase(Locale.ROOT);
-
-            if (registry.get(output) == null) {
-                plugin.getLogger().warning("Skipping workbench recipe '" + id + "': unknown furniture output '" + output + "'.");
-                continue;
-            }
 
             ConfigurationSection ingredientsSection = section.getConfigurationSection("ingredients");
             if (ingredientsSection == null) {
@@ -171,26 +162,69 @@ public final class WorkbenchManager implements Listener {
                 continue;
             }
 
-            Map<Material, Integer> ingredients = new LinkedHashMap<>();
-            for (String materialName : ingredientsSection.getKeys(false)) {
-                Material material = Material.matchMaterial(materialName);
-                int amount = ingredientsSection.getInt(materialName, 0);
-                if (material == null || material.isAir() || amount <= 0) {
-                    plugin.getLogger().warning("Recipe '" + id + "' has invalid ingredient '" + materialName + "'.");
+            Map<String, Integer> ingredients = new LinkedHashMap<>();
+            for (String rawIngredient : ingredientsSection.getKeys(false)) {
+                int amount = ingredientsSection.getInt(rawIngredient, 0);
+                String key = normalizeIngredient(rawIngredient);
+                if (key == null || amount <= 0) {
+                    plugin.getLogger().warning("Recipe '" + id + "' has invalid ingredient '" + rawIngredient + "'.");
                     continue;
                 }
-                ingredients.merge(material, amount, Integer::sum);
+                ingredients.merge(key, amount, Integer::sum);
             }
-
             if (ingredients.isEmpty()) {
                 plugin.getLogger().warning("Skipping workbench recipe '" + id + "': no valid ingredients.");
                 continue;
             }
-
             recipes.add(new WorkbenchRecipe(id, output, ingredients));
         }
-
         plugin.getLogger().info("Loaded " + recipes.size() + " Carpenter Workbench recipes.");
+    }
+
+    private void migrateConfig(YamlConfiguration config) {
+        int version = config.getInt("config-version", 1);
+        if (version >= CONFIG_VERSION) {
+            return;
+        }
+
+        ConfigurationSection recipesRoot = config.getConfigurationSection("recipes");
+        if (recipesRoot != null) {
+            for (String recipeId : List.of("chair", "table", "bookshelf")) {
+                ConfigurationSection recipe = recipesRoot.getConfigurationSection(recipeId);
+                if (recipe == null) {
+                    continue;
+                }
+                ConfigurationSection ingredients = recipe.getConfigurationSection("ingredients");
+                if (ingredients == null || !ingredients.isSet("OAK_PLANKS")) {
+                    continue;
+                }
+                int amount = ingredients.getInt("OAK_PLANKS", 0);
+                ingredients.set("OAK_PLANKS", null);
+                if (amount > 0) {
+                    ingredients.set(PROCESSED_WOOD_KEY, amount);
+                }
+            }
+        }
+        config.set("config-version", CONFIG_VERSION);
+        try {
+            config.save(configFile);
+            plugin.getLogger().info("Migrated workbench.yml to config version " + CONFIG_VERSION + ".");
+        } catch (IOException exception) {
+            plugin.getLogger().warning("Could not save migrated workbench.yml: " + exception.getMessage());
+        }
+    }
+
+    private String normalizeIngredient(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String trimmed = raw.trim();
+        if (trimmed.toLowerCase(Locale.ROOT).startsWith("cdr:")) {
+            String customId = trimmed.substring(4).toLowerCase(Locale.ROOT);
+            return CarpenterMaterialFactory.PROCESSED_WOOD.equals(customId) ? "cdr:" + customId : null;
+        }
+        Material material = Material.matchMaterial(trimmed);
+        return material == null || material.isAir() ? null : material.name();
     }
 
     private List<Integer> sanitizeSlots(List<Integer> configured, int size) {
@@ -209,7 +243,6 @@ public final class WorkbenchManager implements Listener {
         functional.addAll(recipeSlots);
         functional.addAll(inputSlots);
         functional.add(resultSlot);
-
         for (int slot = 0; slot < inventory.getSize(); slot++) {
             if (!functional.contains(slot)) {
                 inventory.setItem(slot, filler.clone());
@@ -224,24 +257,18 @@ public final class WorkbenchManager implements Listener {
                 inventory.setItem(slot, filler());
                 continue;
             }
-
             WorkbenchRecipe recipe = recipes.get(index);
             FurnitureDefinition output = registry.get(recipe.outputFurnitureId());
-            ItemStack icon = output == null
-                    ? new ItemStack(Material.BARRIER)
-                    : FurnitureItemFactory.create(plugin, output, 1);
-
+            ItemStack icon = output == null ? new ItemStack(Material.BARRIER) : FurnitureItemFactory.create(plugin, output, 1);
             ItemMeta meta = icon.getItemMeta();
             if (meta != null) {
                 List<String> lore = new ArrayList<>();
                 lore.add("§7Requires:");
-                for (Map.Entry<Material, Integer> ingredient : recipe.ingredients().entrySet()) {
-                    lore.add("§f- " + ingredient.getValue() + "x " + pretty(ingredient.getKey()));
+                for (Map.Entry<String, Integer> ingredient : recipe.ingredients().entrySet()) {
+                    lore.add("§f- " + ingredient.getValue() + "x " + prettyIngredient(ingredient.getKey()));
                 }
                 lore.add("");
-                lore.add(recipe.id().equals(session.selectedRecipeId())
-                        ? "§aSelected recipe"
-                        : "§eClick to select");
+                lore.add(recipe.id().equals(session.selectedRecipeId()) ? "§aSelected recipe" : "§eClick to select");
                 meta.setLore(lore);
                 icon.setItemMeta(meta);
             }
@@ -255,7 +282,6 @@ public final class WorkbenchManager implements Listener {
             inventory.setItem(resultSlot, unavailable("No recipe selected"));
             return;
         }
-
         FurnitureDefinition output = registry.get(recipe.outputFurnitureId());
         if (output == null) {
             inventory.setItem(resultSlot, unavailable("Recipe output is unavailable"));
@@ -269,36 +295,16 @@ public final class WorkbenchManager implements Listener {
             List<String> lore = new ArrayList<>();
             lore.add(ready ? "§aClick to craft" : "§cMissing materials");
             lore.add("");
-            for (Map.Entry<Material, Integer> ingredient : recipe.ingredients().entrySet()) {
-                int present = countMaterial(inventory, ingredient.getKey());
+            for (Map.Entry<String, Integer> ingredient : recipe.ingredients().entrySet()) {
+                int present = countIngredient(inventory, ingredient.getKey());
                 String color = present >= ingredient.getValue() ? "§a" : "§c";
                 lore.add(color + Math.min(present, ingredient.getValue()) + "/" + ingredient.getValue()
-                        + " " + pretty(ingredient.getKey()));
+                        + " " + prettyIngredient(ingredient.getKey()));
             }
             meta.setLore(lore);
             preview.setItemMeta(meta);
         }
         inventory.setItem(resultSlot, preview);
-    }
-
-    private ItemStack filler() {
-        ItemStack item = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
-        ItemMeta meta = item.getItemMeta();
-        if (meta != null) {
-            meta.setDisplayName(" ");
-            item.setItemMeta(meta);
-        }
-        return item;
-    }
-
-    private ItemStack unavailable(String message) {
-        ItemStack item = new ItemStack(Material.BARRIER);
-        ItemMeta meta = item.getItemMeta();
-        if (meta != null) {
-            meta.setDisplayName("§c" + message);
-            item.setItemMeta(meta);
-        }
-        return item;
     }
 
     private void selectRecipe(Inventory inventory, Session session, int clickedSlot) {
@@ -316,7 +322,6 @@ public final class WorkbenchManager implements Listener {
         if (recipe == null) {
             return;
         }
-
         if (!hasIngredients(inventory, recipe)) {
             player.sendMessage("§cYou do not have the required materials in the Workbench input slots.");
             updateResult(inventory, session);
@@ -338,46 +343,56 @@ public final class WorkbenchManager implements Listener {
     }
 
     private boolean hasIngredients(Inventory inventory, WorkbenchRecipe recipe) {
-        for (Map.Entry<Material, Integer> ingredient : recipe.ingredients().entrySet()) {
-            if (countMaterial(inventory, ingredient.getKey()) < ingredient.getValue()) {
+        for (Map.Entry<String, Integer> ingredient : recipe.ingredients().entrySet()) {
+            if (countIngredient(inventory, ingredient.getKey()) < ingredient.getValue()) {
                 return false;
             }
         }
         return true;
     }
 
-    private int countMaterial(Inventory inventory, Material material) {
+    private int countIngredient(Inventory inventory, String key) {
         int count = 0;
         for (int slot : inputSlots) {
             ItemStack item = inventory.getItem(slot);
-            if (item != null && item.getType() == material) {
+            if (matchesIngredient(item, key)) {
                 count += item.getAmount();
             }
         }
         return count;
     }
 
+    private boolean matchesIngredient(ItemStack item, String key) {
+        if (item == null || item.getType().isAir()) {
+            return false;
+        }
+        if (key.startsWith("cdr:")) {
+            return CarpenterMaterialFactory.is(plugin, item, key.substring(4));
+        }
+        Material material = Material.matchMaterial(key);
+        return material != null && item.getType() == material;
+    }
+
     private void consumeIngredients(Inventory inventory, WorkbenchRecipe recipe) {
-        Map<Material, Integer> remaining = new HashMap<>(recipe.ingredients());
-        for (int slot : inputSlots) {
-            ItemStack item = inventory.getItem(slot);
-            if (item == null || item.getType().isAir()) {
-                continue;
+        for (Map.Entry<String, Integer> ingredient : recipe.ingredients().entrySet()) {
+            int remaining = ingredient.getValue();
+            for (int slot : inputSlots) {
+                if (remaining <= 0) {
+                    break;
+                }
+                ItemStack item = inventory.getItem(slot);
+                if (!matchesIngredient(item, ingredient.getKey())) {
+                    continue;
+                }
+                int consume = Math.min(remaining, item.getAmount());
+                int left = item.getAmount() - consume;
+                if (left <= 0) {
+                    inventory.setItem(slot, null);
+                } else {
+                    item.setAmount(left);
+                }
+                remaining -= consume;
             }
-
-            Integer needed = remaining.get(item.getType());
-            if (needed == null || needed <= 0) {
-                continue;
-            }
-
-            int consume = Math.min(needed, item.getAmount());
-            int left = item.getAmount() - consume;
-            if (left <= 0) {
-                inventory.setItem(slot, null);
-            } else {
-                item.setAmount(left);
-            }
-            remaining.put(item.getType(), needed - consume);
         }
     }
 
@@ -386,16 +401,13 @@ public final class WorkbenchManager implements Listener {
         if (current == null || current.getType().isAir()) {
             return;
         }
-
         ItemStack moving = current.clone();
-
         for (int slot : inputSlots) {
             ItemStack target = inventory.getItem(slot);
             if (target == null || target.getType().isAir() || !target.isSimilar(moving)) {
                 continue;
             }
-            int max = Math.min(target.getMaxStackSize(), inventory.getMaxStackSize());
-            int room = max - target.getAmount();
+            int room = Math.min(target.getMaxStackSize(), inventory.getMaxStackSize()) - target.getAmount();
             if (room <= 0) {
                 continue;
             }
@@ -407,7 +419,6 @@ public final class WorkbenchManager implements Listener {
                 return;
             }
         }
-
         for (int slot : inputSlots) {
             ItemStack target = inventory.getItem(slot);
             if (target != null && !target.getType().isAir()) {
@@ -423,7 +434,6 @@ public final class WorkbenchManager implements Listener {
                 return;
             }
         }
-
         event.setCurrentItem(moving);
     }
 
@@ -448,11 +458,14 @@ public final class WorkbenchManager implements Listener {
         return null;
     }
 
-    private String instanceId(Interaction interaction) {
-        return interaction.getPersistentDataContainer().get(plugin.instanceIdKey(), PersistentDataType.STRING);
-    }
-
-    private String pretty(Material material) {
+    private String prettyIngredient(String key) {
+        if (key.startsWith("cdr:")) {
+            return CarpenterMaterialFactory.displayName(key.substring(4));
+        }
+        Material material = Material.matchMaterial(key);
+        if (material == null) {
+            return key;
+        }
         String[] parts = material.name().toLowerCase(Locale.ROOT).split("_");
         StringBuilder result = new StringBuilder();
         for (String part : parts) {
@@ -462,6 +475,30 @@ public final class WorkbenchManager implements Listener {
             result.append(Character.toUpperCase(part.charAt(0))).append(part.substring(1));
         }
         return result.toString();
+    }
+
+    private ItemStack filler() {
+        ItemStack item = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName(" ");
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
+
+    private ItemStack unavailable(String message) {
+        ItemStack item = new ItemStack(Material.BARRIER);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName("§c" + message);
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
+
+    private String instanceId(Interaction interaction) {
+        return interaction.getPersistentDataContainer().get(plugin.instanceIdKey(), PersistentDataType.STRING);
     }
 
     private void scheduleResultUpdate(Inventory inventory) {
@@ -482,7 +519,6 @@ public final class WorkbenchManager implements Listener {
                 }
             });
         }
-
         for (UUID playerId : viewers) {
             Player player = plugin.getServer().getPlayer(playerId);
             if (player != null) {
@@ -496,10 +532,7 @@ public final class WorkbenchManager implements Listener {
     public void onInventoryClick(InventoryClickEvent event) {
         Inventory top = event.getView().getTopInventory();
         Session session = sessions.get(top);
-        if (session == null) {
-            return;
-        }
-        if (!(event.getWhoClicked() instanceof Player player)) {
+        if (session == null || !(event.getWhoClicked() instanceof Player player)) {
             return;
         }
 
@@ -510,18 +543,15 @@ public final class WorkbenchManager implements Listener {
                 selectRecipe(top, session, rawSlot);
                 return;
             }
-
             if (rawSlot == resultSlot) {
                 event.setCancelled(true);
                 craft(player, top, session);
                 return;
             }
-
             if (!inputSlots.contains(rawSlot)) {
                 event.setCancelled(true);
                 return;
             }
-
             scheduleResultUpdate(top);
             return;
         }
@@ -536,11 +566,9 @@ public final class WorkbenchManager implements Listener {
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onInventoryDrag(InventoryDragEvent event) {
         Inventory top = event.getView().getTopInventory();
-        Session session = sessions.get(top);
-        if (session == null) {
+        if (!sessions.containsKey(top)) {
             return;
         }
-
         for (int rawSlot : event.getRawSlots()) {
             if (rawSlot < top.getSize() && !inputSlots.contains(rawSlot)) {
                 event.setCancelled(true);
@@ -553,8 +581,7 @@ public final class WorkbenchManager implements Listener {
     @EventHandler
     public void onInventoryClose(InventoryCloseEvent event) {
         Inventory inventory = event.getInventory();
-        Session session = sessions.remove(inventory);
-        if (session == null) {
+        if (sessions.remove(inventory) == null) {
             return;
         }
         if (event.getPlayer() instanceof Player player) {
