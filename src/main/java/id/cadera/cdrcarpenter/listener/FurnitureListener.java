@@ -9,6 +9,7 @@ import id.cadera.cdrcarpenter.furniture.FurnitureManager;
 import id.cadera.cdrcarpenter.furniture.FurnitureRegistry;
 import id.cadera.cdrcarpenter.seating.SeatingManager;
 import id.cadera.cdrcarpenter.storage.StorageManager;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Interaction;
@@ -107,7 +108,9 @@ public final class FurnitureListener implements Listener {
         }
 
         event.setCancelled(true);
-        manager.place(event.getPlayer(), definition, target.getLocation(), event.getHand());
+        if (manager.place(event.getPlayer(), definition, target.getLocation(), event.getHand())) {
+            plugin.feedback().furniturePlaced(event.getPlayer(), target.getLocation().clone().add(0.5D, 0.15D, 0.5D));
+        }
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
@@ -191,7 +194,10 @@ public final class FurnitureListener implements Listener {
             return;
         }
 
+        Location effectLocation = interaction.getLocation().clone();
         storage.discardEmptyStorage(interaction);
-        manager.pickup(player, interaction);
+        if (manager.pickup(player, interaction)) {
+            plugin.feedback().furniturePickedUp(player, effectLocation);
+        }
     }
 }
