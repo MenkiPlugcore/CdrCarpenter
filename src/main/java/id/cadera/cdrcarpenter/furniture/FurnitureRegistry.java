@@ -13,7 +13,7 @@ import java.util.Locale;
 import java.util.Map;
 
 public final class FurnitureRegistry {
-    private static final int CONFIG_VERSION = 3;
+    private static final int CONFIG_VERSION = 4;
 
     private final CdrCarpenter plugin;
     private final Map<String, FurnitureDefinition> definitions = new LinkedHashMap<>();
@@ -77,7 +77,7 @@ public final class FurnitureRegistry {
             FurnitureCollisionMode defaultMode;
             if (id.equals("chair")) {
                 defaultMode = FurnitureCollisionMode.CUSTOM;
-            } else if (id.equals("table") || section.getBoolean("collision.barrier", false)) {
+            } else if (section.getBoolean("collision.barrier", false)) {
                 defaultMode = FurnitureCollisionMode.BARRIER;
             } else {
                 defaultMode = FurnitureCollisionMode.NONE;
@@ -269,9 +269,6 @@ public final class FurnitureRegistry {
         if (currentVersion < 3) {
             ConfigurationSection table = root.getConfigurationSection("table");
             if (table != null) {
-                // v0.1.5 CUSTOM collision felt like server-side rubberbanding because it corrected
-                // PlayerMoveEvent. Dinner Table is exactly one block tall, so a 2x2 vanilla
-                // Barrier footprint gives native Minecraft collision with no movement correction.
                 table.set("collision.mode", "BARRIER");
                 table.set("collision.width", 2.0D);
                 table.set("collision.depth", 2.0D);
@@ -283,6 +280,20 @@ public final class FurnitureRegistry {
                 changed = true;
             }
             currentVersion = 3;
+            yaml.set("config-version", currentVersion);
+            changed = true;
+        }
+
+        if (currentVersion < 4) {
+            ConfigurationSection table = root.getConfigurationSection("table");
+            if (table != null) {
+                // Dinner Table is visual-only from v0.1.5-hotfix2 onward. The table model has
+                // open space between its legs, and both custom movement correction and a full
+                // 2x2 barrier footprint felt disconnected from the visual geometry.
+                table.set("collision.mode", "NONE");
+                changed = true;
+            }
+            currentVersion = 4;
             yaml.set("config-version", currentVersion);
             changed = true;
         }
