@@ -6,6 +6,7 @@ import id.cadera.cdrcarpenter.furniture.FurnitureItemFactory;
 import id.cadera.cdrcarpenter.furniture.FurnitureManager;
 import id.cadera.cdrcarpenter.furniture.FurnitureRegistry;
 import id.cadera.cdrcarpenter.seating.SeatingManager;
+import id.cadera.cdrcarpenter.storage.StorageManager;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Interaction;
@@ -25,12 +26,20 @@ public final class FurnitureListener implements Listener {
     private final FurnitureManager manager;
     private final FurnitureRegistry registry;
     private final SeatingManager seating;
+    private final StorageManager storage;
 
-    public FurnitureListener(CdrCarpenter plugin, FurnitureManager manager, FurnitureRegistry registry, SeatingManager seating) {
+    public FurnitureListener(
+            CdrCarpenter plugin,
+            FurnitureManager manager,
+            FurnitureRegistry registry,
+            SeatingManager seating,
+            StorageManager storage
+    ) {
         this.plugin = plugin;
         this.manager = manager;
         this.registry = registry;
         this.seating = seating;
+        this.storage = storage;
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
@@ -57,7 +66,7 @@ public final class FurnitureListener implements Listener {
                     boolean requireSneak = plugin.getConfig().getBoolean("placement.pickup-requires-sneak", true);
                     if (!requireSneak || event.getPlayer().isSneaking()) {
                         pickupIfFree(event.getPlayer(), furniture);
-                    } else {
+                    } else if (!storage.open(event.getPlayer(), furniture)) {
                         seating.sit(event.getPlayer(), furniture);
                     }
                     return;
@@ -108,6 +117,11 @@ public final class FurnitureListener implements Listener {
             return;
         }
 
+        if (storage.open(event.getPlayer(), interaction)) {
+            event.setCancelled(true);
+            return;
+        }
+
         if (seating.sit(event.getPlayer(), interaction)) {
             event.setCancelled(true);
         }
@@ -148,6 +162,14 @@ public final class FurnitureListener implements Listener {
             player.sendMessage("§eSomeone is sitting on this furniture.");
             return;
         }
+
+        String storageBlock = storage.pickupBlockReason(interaction);
+        if (storageBlock != null) {
+            player.sendMessage(storageBlock);
+            return;
+        }
+
+        storage.discardEmptyStorage(interaction);
         manager.pickup(player, interaction);
     }
 }
