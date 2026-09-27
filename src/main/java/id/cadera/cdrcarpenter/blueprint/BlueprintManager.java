@@ -288,10 +288,12 @@ public final class BlueprintManager implements Listener {
                 consumeOne(event.getPlayer(), event.getHand());
                 event.getPlayer().sendMessage("§aBlueprint learned: §f" + definition.displayName() + "§a.");
                 event.getPlayer().sendMessage("§7The §f" + pretty(definition.recipeId()) + " §7recipe is now permanently unlocked.");
+                plugin.feedback().blueprintLearned(event.getPlayer(), definition.displayName());
             }
-            case ALREADY_KNOWN -> event.getPlayer().sendMessage(
-                    "§eYou already know this Blueprint. The item was not consumed."
-            );
+            case ALREADY_KNOWN -> {
+                event.getPlayer().sendMessage("§eYou already know this Blueprint. The item was not consumed.");
+                plugin.feedback().blueprintAlreadyKnown(event.getPlayer());
+            }
             case INVALID -> event.getPlayer().sendMessage("§cThis Blueprint is invalid.");
         }
     }
