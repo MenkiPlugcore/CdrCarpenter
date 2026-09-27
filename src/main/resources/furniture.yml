@@ -1,4 +1,4 @@
-config-version: 6
+config-version: 7
 
 furniture:
   chair:
@@ -118,6 +118,7 @@ furniture:
       z: 0.0
     collision:
       mode: NONE
+      material: OAK_SLAB
     seat:
       enabled: false
     storage:
@@ -143,6 +144,7 @@ furniture:
       z: 0.0
     collision:
       mode: NONE
+      material: STONECUTTER
     seat:
       enabled: false
     storage:
