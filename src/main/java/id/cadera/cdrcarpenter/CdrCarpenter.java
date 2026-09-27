@@ -4,6 +4,7 @@ import id.cadera.cdrcarpenter.blueprint.BlueprintManager;
 import id.cadera.cdrcarpenter.command.CarpenterCommand;
 import id.cadera.cdrcarpenter.crafting.SawmillManager;
 import id.cadera.cdrcarpenter.crafting.WorkbenchManager;
+import id.cadera.cdrcarpenter.feedback.FeedbackManager;
 import id.cadera.cdrcarpenter.furniture.FurnitureManager;
 import id.cadera.cdrcarpenter.furniture.FurnitureRegistry;
 import id.cadera.cdrcarpenter.integration.GSitBridge;
@@ -33,6 +34,7 @@ public final class CdrCarpenter extends JavaPlugin {
     private BlueprintManager blueprintManager;
     private WorkbenchManager workbenchManager;
     private SawmillManager sawmillManager;
+    private FeedbackManager feedbackManager;
 
     @Override
     public void onEnable() {
@@ -50,6 +52,7 @@ public final class CdrCarpenter extends JavaPlugin {
         blueprintIdKey = new NamespacedKey(this, "blueprint_id");
 
         itemsAdderBridge = new ItemsAdderBridge(this);
+        feedbackManager = new FeedbackManager(this);
         furnitureRegistry = new FurnitureRegistry(this);
         furnitureRegistry.load();
         furnitureManager = new FurnitureManager(this, furnitureRegistry);
@@ -97,7 +100,8 @@ public final class CdrCarpenter extends JavaPlugin {
         getLogger().info("GSit: " + gsitBridge.statusDescription());
         getLogger().info("Furniture storage: enabled - persistent storage.yml backend");
         getLogger().info("Carpenter Workbench: blueprint-gated crafting enabled");
-        getLogger().info("Carpenter Sawmill: log processing enabled");
+        getLogger().info("Carpenter Sawmill: timed processing + animation enabled");
+        getLogger().info("Gameplay feedback: " + (getConfig().getBoolean("effects.enabled", true) ? "enabled" : "disabled"));
     }
 
     @Override
@@ -136,6 +140,10 @@ public final class CdrCarpenter extends JavaPlugin {
 
     public ItemsAdderBridge itemsAdderBridge() {
         return itemsAdderBridge;
+    }
+
+    public FeedbackManager feedback() {
+        return feedbackManager;
     }
 
     public NamespacedKey furnitureItemKey() {
