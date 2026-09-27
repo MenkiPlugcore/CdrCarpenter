@@ -1,6 +1,7 @@
 package id.cadera.cdrcarpenter;
 
 import id.cadera.cdrcarpenter.command.CarpenterCommand;
+import id.cadera.cdrcarpenter.crafting.SawmillManager;
 import id.cadera.cdrcarpenter.crafting.WorkbenchManager;
 import id.cadera.cdrcarpenter.furniture.FurnitureManager;
 import id.cadera.cdrcarpenter.furniture.FurnitureRegistry;
@@ -19,6 +20,7 @@ public final class CdrCarpenter extends JavaPlugin {
     private NamespacedKey furnitureIdKey;
     private NamespacedKey instanceIdKey;
     private NamespacedKey ownerKey;
+    private NamespacedKey materialItemKey;
 
     private FurnitureRegistry furnitureRegistry;
     private FurnitureManager furnitureManager;
@@ -27,17 +29,20 @@ public final class CdrCarpenter extends JavaPlugin {
     private SeatingManager seatingManager;
     private StorageManager storageManager;
     private WorkbenchManager workbenchManager;
+    private SawmillManager sawmillManager;
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
         saveResource("furniture.yml", false);
         saveResource("workbench.yml", false);
+        saveResource("sawmill.yml", false);
 
         furnitureItemKey = new NamespacedKey(this, "furniture_item");
         furnitureIdKey = new NamespacedKey(this, "furniture_id");
         instanceIdKey = new NamespacedKey(this, "instance_id");
         ownerKey = new NamespacedKey(this, "owner");
+        materialItemKey = new NamespacedKey(this, "material_item");
 
         itemsAdderBridge = new ItemsAdderBridge(this);
         furnitureRegistry = new FurnitureRegistry(this);
@@ -47,6 +52,7 @@ public final class CdrCarpenter extends JavaPlugin {
         seatingManager = new SeatingManager(this, furnitureManager, gsitBridge);
         storageManager = new StorageManager(this, furnitureManager, furnitureRegistry);
         workbenchManager = new WorkbenchManager(this, furnitureManager, furnitureRegistry);
+        sawmillManager = new SawmillManager(this, furnitureManager);
 
         getServer().getPluginManager().registerEvents(
                 new FurnitureListener(
@@ -55,7 +61,8 @@ public final class CdrCarpenter extends JavaPlugin {
                         furnitureRegistry,
                         seatingManager,
                         storageManager,
-                        workbenchManager
+                        workbenchManager,
+                        sawmillManager
                 ),
                 this
         );
@@ -63,6 +70,7 @@ public final class CdrCarpenter extends JavaPlugin {
         getServer().getPluginManager().registerEvents(seatingManager, this);
         getServer().getPluginManager().registerEvents(storageManager, this);
         getServer().getPluginManager().registerEvents(workbenchManager, this);
+        getServer().getPluginManager().registerEvents(sawmillManager, this);
         seatingManager.start();
 
         CarpenterCommand command = new CarpenterCommand(this, furnitureRegistry, furnitureManager);
@@ -81,10 +89,14 @@ public final class CdrCarpenter extends JavaPlugin {
         getLogger().info("GSit: " + gsitBridge.statusDescription());
         getLogger().info("Furniture storage: enabled - persistent storage.yml backend");
         getLogger().info("Carpenter Workbench: crafting GUI enabled");
+        getLogger().info("Carpenter Sawmill: log processing enabled");
     }
 
     @Override
     public void onDisable() {
+        if (sawmillManager != null) {
+            sawmillManager.shutdown();
+        }
         if (workbenchManager != null) {
             workbenchManager.shutdown();
         }
@@ -104,6 +116,9 @@ public final class CdrCarpenter extends JavaPlugin {
         furnitureRegistry.load();
         if (workbenchManager != null) {
             workbenchManager.reload();
+        }
+        if (sawmillManager != null) {
+            sawmillManager.reload();
         }
         furnitureManager.reconcileCollisions();
     }
@@ -126,5 +141,9 @@ public final class CdrCarpenter extends JavaPlugin {
 
     public NamespacedKey ownerKey() {
         return ownerKey;
+    }
+
+    public NamespacedKey materialItemKey() {
+        return materialItemKey;
     }
 }
