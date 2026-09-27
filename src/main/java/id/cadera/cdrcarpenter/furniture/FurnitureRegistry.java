@@ -13,7 +13,7 @@ import java.util.Locale;
 import java.util.Map;
 
 public final class FurnitureRegistry {
-    private static final int CONFIG_VERSION = 2;
+    private static final int CONFIG_VERSION = 3;
 
     private final CdrCarpenter plugin;
     private final Map<String, FurnitureDefinition> definitions = new LinkedHashMap<>();
@@ -75,9 +75,9 @@ public final class FurnitureRegistry {
             double visualOffsetZ = section.getDouble("visual-offset.z", 0.0D);
 
             FurnitureCollisionMode defaultMode;
-            if (id.equals("chair") || id.equals("table")) {
+            if (id.equals("chair")) {
                 defaultMode = FurnitureCollisionMode.CUSTOM;
-            } else if (section.getBoolean("collision.barrier", false)) {
+            } else if (id.equals("table") || section.getBoolean("collision.barrier", false)) {
                 defaultMode = FurnitureCollisionMode.BARRIER;
             } else {
                 defaultMode = FurnitureCollisionMode.NONE;
@@ -92,7 +92,7 @@ public final class FurnitureRegistry {
 
             double defaultCollisionWidth = id.equals("chair") ? 0.85D : (id.equals("table") ? 2.0D : 1.0D);
             double defaultCollisionDepth = id.equals("chair") ? 0.85D : (id.equals("table") ? 2.0D : 1.0D);
-            double defaultCollisionHeight = id.equals("chair") ? 0.58D : (id.equals("table") ? 1.0D : 1.0D);
+            double defaultCollisionHeight = id.equals("chair") ? 0.58D : 1.0D;
 
             double collisionWidth = clamp(section.getDouble("collision.width", defaultCollisionWidth), 0.10D, 4.0D);
             double collisionDepth = clamp(section.getDouble("collision.depth", defaultCollisionDepth), 0.10D, 4.0D);
@@ -117,7 +117,7 @@ public final class FurnitureRegistry {
                 section.set("collision.barrier", null);
                 migrated = true;
             }
-            if (collisionMode == FurnitureCollisionMode.CUSTOM) {
+            if (collisionMode == FurnitureCollisionMode.CUSTOM || collisionMode == FurnitureCollisionMode.BARRIER) {
                 if (!section.isSet("collision.width")) {
                     section.set("collision.width", collisionWidth);
                     migrated = true;
@@ -242,11 +242,9 @@ public final class FurnitureRegistry {
             if (table != null) {
                 table.set("display-name", "Comfy Dinner Table");
                 table.set("itemsadder-id", "cdrcarpenter:table");
-
                 table.set("visual-offset.x", 0.0D);
                 table.set("visual-offset.y", 0.50D);
                 table.set("visual-offset.z", 0.0D);
-
                 table.set("collision.mode", "CUSTOM");
                 table.set("collision.width", 2.0D);
                 table.set("collision.depth", 2.0D);
@@ -255,18 +253,37 @@ public final class FurnitureRegistry {
                 table.set("collision.offset.x", 0.0D);
                 table.set("collision.offset.y", 0.0D);
                 table.set("collision.offset.z", 0.0D);
-
                 table.set("hitbox.width", 2.0D);
                 table.set("hitbox.height", 1.10D);
                 table.set("hitbox.offset.x", 0.50D);
                 table.set("hitbox.offset.y", 0.0D);
                 table.set("hitbox.offset.z", -0.50D);
-
                 table.set("seat.enabled", false);
                 changed = true;
             }
+            currentVersion = 2;
+            yaml.set("config-version", currentVersion);
+            changed = true;
+        }
 
-            yaml.set("config-version", 2);
+        if (currentVersion < 3) {
+            ConfigurationSection table = root.getConfigurationSection("table");
+            if (table != null) {
+                // v0.1.5 CUSTOM collision felt like server-side rubberbanding because it corrected
+                // PlayerMoveEvent. Dinner Table is exactly one block tall, so a 2x2 vanilla
+                // Barrier footprint gives native Minecraft collision with no movement correction.
+                table.set("collision.mode", "BARRIER");
+                table.set("collision.width", 2.0D);
+                table.set("collision.depth", 2.0D);
+                table.set("collision.height", 1.0D);
+                table.set("collision.standable", true);
+                table.set("collision.offset.x", 0.0D);
+                table.set("collision.offset.y", 0.0D);
+                table.set("collision.offset.z", 0.0D);
+                changed = true;
+            }
+            currentVersion = 3;
+            yaml.set("config-version", currentVersion);
             changed = true;
         }
 
