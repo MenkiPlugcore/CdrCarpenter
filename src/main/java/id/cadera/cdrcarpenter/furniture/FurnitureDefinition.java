@@ -2,6 +2,8 @@ package id.cadera.cdrcarpenter.furniture;
 
 import org.bukkit.Material;
 
+import java.util.Set;
+
 public record FurnitureDefinition(
         String id,
         String displayName,
@@ -29,6 +31,10 @@ public record FurnitureDefinition(
         double seatOffsetY,
         double seatOffsetZ,
         float seatYawOffset,
-        boolean seatCanRotate
+        boolean seatCanRotate,
+        boolean storageEnabled,
+        int storageRows,
+        String storageTitle,
+        Set<Material> storageAllowedMaterials
 ) {
 }
