@@ -11,7 +11,7 @@ softdepend:
 commands:
   carpenter:
     description: Main CdrCarpenter command.
-    usage: /carpenter <give|list|reload>
+    usage: /carpenter <give|list|blueprint|reload>
     aliases: [cdrchair, cdrcarpenter]
 permissions:
   cdrcarpenter.use:
