@@ -1,6 +1,7 @@
 package id.cadera.cdrcarpenter;
 
 import id.cadera.cdrcarpenter.command.CarpenterCommand;
+import id.cadera.cdrcarpenter.crafting.WorkbenchManager;
 import id.cadera.cdrcarpenter.furniture.FurnitureManager;
 import id.cadera.cdrcarpenter.furniture.FurnitureRegistry;
 import id.cadera.cdrcarpenter.integration.GSitBridge;
@@ -25,11 +26,13 @@ public final class CdrCarpenter extends JavaPlugin {
     private GSitBridge gsitBridge;
     private SeatingManager seatingManager;
     private StorageManager storageManager;
+    private WorkbenchManager workbenchManager;
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
         saveResource("furniture.yml", false);
+        saveResource("workbench.yml", false);
 
         furnitureItemKey = new NamespacedKey(this, "furniture_item");
         furnitureIdKey = new NamespacedKey(this, "furniture_id");
@@ -43,14 +46,23 @@ public final class CdrCarpenter extends JavaPlugin {
         gsitBridge = new GSitBridge(this);
         seatingManager = new SeatingManager(this, furnitureManager, gsitBridge);
         storageManager = new StorageManager(this, furnitureManager, furnitureRegistry);
+        workbenchManager = new WorkbenchManager(this, furnitureManager, furnitureRegistry);
 
         getServer().getPluginManager().registerEvents(
-                new FurnitureListener(this, furnitureManager, furnitureRegistry, seatingManager, storageManager),
+                new FurnitureListener(
+                        this,
+                        furnitureManager,
+                        furnitureRegistry,
+                        seatingManager,
+                        storageManager,
+                        workbenchManager
+                ),
                 this
         );
         getServer().getPluginManager().registerEvents(new CustomCollisionListener(furnitureManager), this);
         getServer().getPluginManager().registerEvents(seatingManager, this);
         getServer().getPluginManager().registerEvents(storageManager, this);
+        getServer().getPluginManager().registerEvents(workbenchManager, this);
         seatingManager.start();
 
         CarpenterCommand command = new CarpenterCommand(this, furnitureRegistry, furnitureManager);
@@ -68,10 +80,14 @@ public final class CdrCarpenter extends JavaPlugin {
         getLogger().info("ItemsAdder: " + (itemsAdderBridge.isAvailable() ? "detected - custom item rendering enabled" : "not detected - vanilla fallback enabled"));
         getLogger().info("GSit: " + gsitBridge.statusDescription());
         getLogger().info("Furniture storage: enabled - persistent storage.yml backend");
+        getLogger().info("Carpenter Workbench: crafting GUI enabled");
     }
 
     @Override
     public void onDisable() {
+        if (workbenchManager != null) {
+            workbenchManager.shutdown();
+        }
         if (seatingManager != null) {
             seatingManager.shutdown();
         }
@@ -86,6 +102,9 @@ public final class CdrCarpenter extends JavaPlugin {
             storageManager.reload();
         }
         furnitureRegistry.load();
+        if (workbenchManager != null) {
+            workbenchManager.reload();
+        }
         furnitureManager.reconcileCollisions();
     }
 
