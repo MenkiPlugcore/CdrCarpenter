@@ -1,4 +1,4 @@
-config-version: 1
+config-version: 2
 
 gui:
   title: "Carpenter Sawmill"
@@ -8,6 +8,10 @@ gui:
   output-slot: 15
 
 processing:
+  # One processing batch takes 50 ticks (2.5 seconds).
+  # Shift-click still processes the whole input stack as one batch.
+  duration-ticks: 50
+  pulse-interval-ticks: 10
   output-item: "processed_wood"
   output-per-log: 4
   accepted-inputs:
