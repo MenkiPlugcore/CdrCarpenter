@@ -2,6 +2,7 @@ package id.cadera.cdrcarpenter.furniture;
 
 import org.bukkit.Material;
 
+import java.util.List;
 import java.util.Set;
 
 public record FurnitureDefinition(
@@ -26,6 +27,7 @@ public record FurnitureDefinition(
         double collisionOffsetY,
         double collisionOffsetZ,
         boolean collisionStandable,
+        List<FurnitureCollisionBlock> collisionBlocks,
         boolean seatEnabled,
         double seatOffsetX,
         double seatOffsetY,
