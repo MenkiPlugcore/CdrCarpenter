@@ -1,6 +1,7 @@
 package id.cadera.cdrcarpenter.listener;
 
 import id.cadera.cdrcarpenter.CdrCarpenter;
+import id.cadera.cdrcarpenter.crafting.SawmillManager;
 import id.cadera.cdrcarpenter.crafting.WorkbenchManager;
 import id.cadera.cdrcarpenter.furniture.FurnitureDefinition;
 import id.cadera.cdrcarpenter.furniture.FurnitureItemFactory;
@@ -29,6 +30,7 @@ public final class FurnitureListener implements Listener {
     private final SeatingManager seating;
     private final StorageManager storage;
     private final WorkbenchManager workbench;
+    private final SawmillManager sawmill;
 
     public FurnitureListener(
             CdrCarpenter plugin,
@@ -36,7 +38,8 @@ public final class FurnitureListener implements Listener {
             FurnitureRegistry registry,
             SeatingManager seating,
             StorageManager storage,
-            WorkbenchManager workbench
+            WorkbenchManager workbench,
+            SawmillManager sawmill
     ) {
         this.plugin = plugin;
         this.manager = manager;
@@ -44,6 +47,7 @@ public final class FurnitureListener implements Listener {
         this.seating = seating;
         this.storage = storage;
         this.workbench = workbench;
+        this.sawmill = sawmill;
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
@@ -53,7 +57,6 @@ public final class FurnitureListener implements Listener {
         }
 
         Block clicked = event.getClickedBlock();
-
         if (clicked.getType() == Material.BARRIER) {
             Interaction furniture = manager.findFurnitureAtBarrier(clicked.getLocation());
             if (furniture != null) {
@@ -71,7 +74,8 @@ public final class FurnitureListener implements Listener {
                     if (!requireSneak || event.getPlayer().isSneaking()) {
                         pickupIfFree(event.getPlayer(), furniture);
                     } else if (!storage.open(event.getPlayer(), furniture)
-                            && !workbench.open(event.getPlayer(), furniture)) {
+                            && !workbench.open(event.getPlayer(), furniture)
+                            && !sawmill.open(event.getPlayer(), furniture)) {
                         seating.sit(event.getPlayer(), furniture);
                     }
                     return;
@@ -126,12 +130,14 @@ public final class FurnitureListener implements Listener {
             event.setCancelled(true);
             return;
         }
-
         if (workbench.open(event.getPlayer(), interaction)) {
             event.setCancelled(true);
             return;
         }
-
+        if (sawmill.open(event.getPlayer(), interaction)) {
+            event.setCancelled(true);
+            return;
+        }
         if (seating.sit(event.getPlayer(), interaction)) {
             event.setCancelled(true);
         }
@@ -142,9 +148,7 @@ public final class FurnitureListener implements Listener {
         if (!manager.isFurnitureEntity(event.getEntity())) {
             return;
         }
-
         event.setCancelled(true);
-
         if (event.getDamager() instanceof Player player
                 && plugin.getConfig().getBoolean("placement.left-click-pickup", true)
                 && event.getEntity() instanceof Interaction interaction) {
@@ -157,12 +161,10 @@ public final class FurnitureListener implements Listener {
         if (event.getBlock().getType() != Material.BARRIER) {
             return;
         }
-
         Interaction furniture = manager.findFurnitureAtBarrier(event.getBlock().getLocation());
         if (furniture == null) {
             return;
         }
-
         event.setCancelled(true);
         pickupIfFree(event.getPlayer(), furniture);
     }
@@ -178,10 +180,14 @@ public final class FurnitureListener implements Listener {
             player.sendMessage(storageBlock);
             return;
         }
-
         String workbenchBlock = workbench.pickupBlockReason(interaction);
         if (workbenchBlock != null) {
             player.sendMessage(workbenchBlock);
+            return;
+        }
+        String sawmillBlock = sawmill.pickupBlockReason(interaction);
+        if (sawmillBlock != null) {
+            player.sendMessage(sawmillBlock);
             return;
         }
 
