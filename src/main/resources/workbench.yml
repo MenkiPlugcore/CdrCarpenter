@@ -1,4 +1,4 @@
-config-version: 1
+config-version: 2
 
 gui:
   title: "Carpenter Workbench"
@@ -17,17 +17,17 @@ recipes:
   chair:
     output: chair
     ingredients:
-      OAK_PLANKS: 6
+      "cdr:processed_wood": 6
       STICK: 4
 
   table:
     output: table
     ingredients:
-      OAK_PLANKS: 12
+      "cdr:processed_wood": 12
       STICK: 4
 
   bookshelf:
     output: bookshelf
     ingredients:
-      OAK_PLANKS: 8
+      "cdr:processed_wood": 8
       BOOK: 3
