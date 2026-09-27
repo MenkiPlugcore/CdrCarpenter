@@ -96,7 +96,7 @@ public final class FeedbackManager {
 
     public void sawmillStart(Player player, Location location) {
         if (sound("sawmill.sound")) {
-            player.playSound(location, Sound.BLOCK_STONECUTTER_USE, 0.80F, 0.75F);
+            player.playSound(location, "minecraft:block.grindstone.use", 0.80F, 0.75F);
         }
         if (particles("sawmill.particles")) {
             woodParticles(location.clone().add(0.0D, 0.85D, 0.0D), 10, 0.25D);
@@ -110,7 +110,7 @@ public final class FeedbackManager {
         int clamped = Math.max(0, Math.min(100, progressPercent));
         if (sound("sawmill.sound")) {
             float pitch = 0.78F + (clamped / 100.0F) * 0.18F;
-            player.playSound(location, Sound.BLOCK_STONECUTTER_USE, 0.48F, pitch);
+            player.playSound(location, "minecraft:block.grindstone.use", 0.48F, pitch);
         }
         if (particles("sawmill.particles")) {
             woodParticles(location.clone().add(0.0D, 0.90D, 0.0D), 7, 0.22D);
@@ -122,7 +122,7 @@ public final class FeedbackManager {
 
     public void sawmillFinish(Player player, Location location, int outputAmount) {
         if (sound("sawmill.sound")) {
-            player.playSound(location, Sound.BLOCK_STONECUTTER_USE, 0.70F, 1.15F);
+            player.playSound(location, "minecraft:block.grindstone.use", 0.70F, 1.15F);
             player.playSound(location, Sound.ENTITY_ITEM_PICKUP, 0.55F, 1.20F);
         }
         if (particles("sawmill.particles")) {
