@@ -5,7 +5,8 @@ import java.util.Locale;
 public enum FurnitureCollisionMode {
     NONE,
     BARRIER,
-    CUSTOM;
+    CUSTOM,
+    BLOCK;
 
     public static FurnitureCollisionMode parse(String raw, FurnitureCollisionMode fallback) {
         if (raw == null || raw.isBlank()) {
