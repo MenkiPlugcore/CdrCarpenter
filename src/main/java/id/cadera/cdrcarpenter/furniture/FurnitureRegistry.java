@@ -9,11 +9,22 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 public final class FurnitureRegistry {
-    private static final int CONFIG_VERSION = 4;
+    private static final int CONFIG_VERSION = 5;
+    private static final List<String> DEFAULT_BOOKSHELF_MATERIALS = List.of(
+            "BOOK",
+            "WRITABLE_BOOK",
+            "WRITTEN_BOOK",
+            "PAPER",
+            "MAP",
+            "FILLED_MAP"
+    );
 
     private final CdrCarpenter plugin;
     private final Map<String, FurnitureDefinition> definitions = new LinkedHashMap<>();
@@ -57,7 +68,7 @@ public final class FurnitureRegistry {
             }
 
             double defaultHitboxWidth = id.equals("table") ? 2.0D : 1.0D;
-            double defaultHitboxHeight = id.equals("table") ? 1.10D : 1.0D;
+            double defaultHitboxHeight = id.equals("table") ? 1.10D : (id.equals("bookshelf") ? 1.55D : 1.0D);
             float hitboxWidth = (float) section.getDouble("hitbox.width", defaultHitboxWidth);
             float hitboxHeight = (float) section.getDouble("hitbox.height", defaultHitboxHeight);
             hitboxWidth = Math.max(0.1F, Math.min(hitboxWidth, 4.0F));
@@ -108,6 +119,14 @@ public final class FurnitureRegistry {
             double seatOffsetZ = section.getDouble("seat.offset.z", 0.0D);
             float seatYawOffset = (float) section.getDouble("seat.yaw-offset", 0.0D);
             boolean seatCanRotate = section.getBoolean("seat.can-rotate", false);
+
+            boolean storageEnabled = section.getBoolean("storage.enabled", id.equals("bookshelf"));
+            int storageRows = Math.max(1, Math.min(section.getInt("storage.rows", 3), 6));
+            String storageTitle = section.getString("storage.title", displayName);
+            if (storageTitle == null || storageTitle.isBlank()) {
+                storageTitle = displayName;
+            }
+            Set<Material> storageAllowedMaterials = parseAllowedMaterials(section, id);
 
             if (!section.isSet("collision.mode")) {
                 section.set("collision.mode", collisionMode.name());
@@ -188,6 +207,25 @@ public final class FurnitureRegistry {
                 }
             }
 
+            if (storageEnabled || section.isConfigurationSection("storage") || section.isSet("storage.enabled")) {
+                if (!section.isSet("storage.enabled")) {
+                    section.set("storage.enabled", storageEnabled);
+                    migrated = true;
+                }
+                if (!section.isSet("storage.rows")) {
+                    section.set("storage.rows", storageRows);
+                    migrated = true;
+                }
+                if (!section.isSet("storage.title")) {
+                    section.set("storage.title", storageTitle);
+                    migrated = true;
+                }
+                if (!section.isSet("storage.allowed-materials") && id.equals("bookshelf")) {
+                    section.set("storage.allowed-materials", DEFAULT_BOOKSHELF_MATERIALS);
+                    migrated = true;
+                }
+            }
+
             definitions.put(id, new FurnitureDefinition(
                     id,
                     displayName,
@@ -215,7 +253,11 @@ public final class FurnitureRegistry {
                     seatOffsetY,
                     seatOffsetZ,
                     seatYawOffset,
-                    seatCanRotate
+                    seatCanRotate,
+                    storageEnabled,
+                    storageRows,
+                    storageTitle,
+                    Set.copyOf(storageAllowedMaterials)
             ));
         }
 
@@ -227,6 +269,28 @@ public final class FurnitureRegistry {
                 plugin.getLogger().warning("Could not save migrated furniture.yml: " + ex.getMessage());
             }
         }
+    }
+
+    private Set<Material> parseAllowedMaterials(ConfigurationSection section, String id) {
+        Set<Material> result = new LinkedHashSet<>();
+        List<String> configured;
+        if (section.isSet("storage.allowed-materials")) {
+            configured = section.getStringList("storage.allowed-materials");
+        } else if (id.equals("bookshelf")) {
+            configured = DEFAULT_BOOKSHELF_MATERIALS;
+        } else {
+            configured = List.of();
+        }
+
+        for (String materialName : configured) {
+            Material parsed = Material.matchMaterial(materialName);
+            if (parsed == null || parsed.isAir()) {
+                plugin.getLogger().warning("Furniture '" + id + "' has invalid storage material '" + materialName + "'.");
+                continue;
+            }
+            result.add(parsed);
+        }
+        return result;
     }
 
     private boolean migrateConfig(YamlConfiguration yaml, ConfigurationSection root) {
@@ -287,13 +351,36 @@ public final class FurnitureRegistry {
         if (currentVersion < 4) {
             ConfigurationSection table = root.getConfigurationSection("table");
             if (table != null) {
-                // Dinner Table is visual-only from v0.1.5-hotfix2 onward. The table model has
-                // open space between its legs, and both custom movement correction and a full
-                // 2x2 barrier footprint felt disconnected from the visual geometry.
                 table.set("collision.mode", "NONE");
                 changed = true;
             }
             currentVersion = 4;
+            yaml.set("config-version", currentVersion);
+            changed = true;
+        }
+
+        if (currentVersion < 5) {
+            ConfigurationSection bookshelf = root.getConfigurationSection("bookshelf");
+            if (bookshelf != null) {
+                bookshelf.set("display-name", "Oak Bookshelf");
+                bookshelf.set("itemsadder-id", "cdrcarpenter:bookshelf");
+                bookshelf.set("visual-offset.x", 0.0D);
+                bookshelf.set("visual-offset.y", 0.0D);
+                bookshelf.set("visual-offset.z", 0.0D);
+                bookshelf.set("collision.mode", "NONE");
+                bookshelf.set("hitbox.width", 1.0D);
+                bookshelf.set("hitbox.height", 1.55D);
+                bookshelf.set("hitbox.offset.x", 0.0D);
+                bookshelf.set("hitbox.offset.y", 0.0D);
+                bookshelf.set("hitbox.offset.z", 0.0D);
+                bookshelf.set("seat.enabled", false);
+                bookshelf.set("storage.enabled", true);
+                bookshelf.set("storage.rows", 3);
+                bookshelf.set("storage.title", "Bookshelf");
+                bookshelf.set("storage.allowed-materials", DEFAULT_BOOKSHELF_MATERIALS);
+                changed = true;
+            }
+            currentVersion = 5;
             yaml.set("config-version", currentVersion);
             changed = true;
         }
