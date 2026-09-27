@@ -1,5 +1,6 @@
 package id.cadera.cdrcarpenter;
 
+import id.cadera.cdrcarpenter.blueprint.BlueprintManager;
 import id.cadera.cdrcarpenter.command.CarpenterCommand;
 import id.cadera.cdrcarpenter.crafting.SawmillManager;
 import id.cadera.cdrcarpenter.crafting.WorkbenchManager;
@@ -21,6 +22,7 @@ public final class CdrCarpenter extends JavaPlugin {
     private NamespacedKey instanceIdKey;
     private NamespacedKey ownerKey;
     private NamespacedKey materialItemKey;
+    private NamespacedKey blueprintIdKey;
 
     private FurnitureRegistry furnitureRegistry;
     private FurnitureManager furnitureManager;
@@ -28,6 +30,7 @@ public final class CdrCarpenter extends JavaPlugin {
     private GSitBridge gsitBridge;
     private SeatingManager seatingManager;
     private StorageManager storageManager;
+    private BlueprintManager blueprintManager;
     private WorkbenchManager workbenchManager;
     private SawmillManager sawmillManager;
 
@@ -37,12 +40,14 @@ public final class CdrCarpenter extends JavaPlugin {
         saveResource("furniture.yml", false);
         saveResource("workbench.yml", false);
         saveResource("sawmill.yml", false);
+        saveResource("blueprints.yml", false);
 
         furnitureItemKey = new NamespacedKey(this, "furniture_item");
         furnitureIdKey = new NamespacedKey(this, "furniture_id");
         instanceIdKey = new NamespacedKey(this, "instance_id");
         ownerKey = new NamespacedKey(this, "owner");
         materialItemKey = new NamespacedKey(this, "material_item");
+        blueprintIdKey = new NamespacedKey(this, "blueprint_id");
 
         itemsAdderBridge = new ItemsAdderBridge(this);
         furnitureRegistry = new FurnitureRegistry(this);
@@ -51,7 +56,8 @@ public final class CdrCarpenter extends JavaPlugin {
         gsitBridge = new GSitBridge(this);
         seatingManager = new SeatingManager(this, furnitureManager, gsitBridge);
         storageManager = new StorageManager(this, furnitureManager, furnitureRegistry);
-        workbenchManager = new WorkbenchManager(this, furnitureManager, furnitureRegistry);
+        blueprintManager = new BlueprintManager(this);
+        workbenchManager = new WorkbenchManager(this, furnitureManager, furnitureRegistry, blueprintManager);
         sawmillManager = new SawmillManager(this, furnitureManager);
 
         getServer().getPluginManager().registerEvents(
@@ -69,11 +75,12 @@ public final class CdrCarpenter extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new CustomCollisionListener(furnitureManager), this);
         getServer().getPluginManager().registerEvents(seatingManager, this);
         getServer().getPluginManager().registerEvents(storageManager, this);
+        getServer().getPluginManager().registerEvents(blueprintManager, this);
         getServer().getPluginManager().registerEvents(workbenchManager, this);
         getServer().getPluginManager().registerEvents(sawmillManager, this);
         seatingManager.start();
 
-        CarpenterCommand command = new CarpenterCommand(this, furnitureRegistry, furnitureManager);
+        CarpenterCommand command = new CarpenterCommand(this, furnitureRegistry, furnitureManager, blueprintManager);
         PluginCommand pluginCommand = getCommand("carpenter");
         if (pluginCommand == null) {
             throw new IllegalStateException("Command 'carpenter' is missing from plugin.yml");
@@ -85,10 +92,11 @@ public final class CdrCarpenter extends JavaPlugin {
 
         getLogger().info("CdrCarpenter v" + getPluginMeta().getVersion() + " enabled.");
         getLogger().info("Loaded " + furnitureRegistry.size() + " furniture definitions.");
+        getLogger().info("Loaded " + blueprintManager.all().size() + " Carpenter Blueprints.");
         getLogger().info("ItemsAdder: " + (itemsAdderBridge.isAvailable() ? "detected - custom item rendering enabled" : "not detected - vanilla fallback enabled"));
         getLogger().info("GSit: " + gsitBridge.statusDescription());
         getLogger().info("Furniture storage: enabled - persistent storage.yml backend");
-        getLogger().info("Carpenter Workbench: crafting GUI enabled");
+        getLogger().info("Carpenter Workbench: blueprint-gated crafting enabled");
         getLogger().info("Carpenter Sawmill: log processing enabled");
     }
 
@@ -114,6 +122,9 @@ public final class CdrCarpenter extends JavaPlugin {
             storageManager.reload();
         }
         furnitureRegistry.load();
+        if (blueprintManager != null) {
+            blueprintManager.reload();
+        }
         if (workbenchManager != null) {
             workbenchManager.reload();
         }
@@ -145,5 +156,9 @@ public final class CdrCarpenter extends JavaPlugin {
 
     public NamespacedKey materialItemKey() {
         return materialItemKey;
+    }
+
+    public NamespacedKey blueprintIdKey() {
+        return blueprintIdKey;
     }
 }
