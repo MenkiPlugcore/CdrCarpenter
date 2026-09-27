@@ -24,6 +24,7 @@ public final class CdrCarpenter extends JavaPlugin {
     private NamespacedKey ownerKey;
     private NamespacedKey materialItemKey;
     private NamespacedKey blueprintIdKey;
+    private NamespacedKey collisionStateKey;
 
     private FurnitureRegistry furnitureRegistry;
     private FurnitureManager furnitureManager;
@@ -50,6 +51,7 @@ public final class CdrCarpenter extends JavaPlugin {
         ownerKey = new NamespacedKey(this, "owner");
         materialItemKey = new NamespacedKey(this, "material_item");
         blueprintIdKey = new NamespacedKey(this, "blueprint_id");
+        collisionStateKey = new NamespacedKey(this, "collision_state");
 
         itemsAdderBridge = new ItemsAdderBridge(this);
         feedbackManager = new FeedbackManager(this);
@@ -168,5 +170,9 @@ public final class CdrCarpenter extends JavaPlugin {
 
     public NamespacedKey blueprintIdKey() {
         return blueprintIdKey;
+    }
+
+    public NamespacedKey collisionStateKey() {
+        return collisionStateKey;
     }
 }
