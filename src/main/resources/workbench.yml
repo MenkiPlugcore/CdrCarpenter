@@ -1,0 +1,33 @@
+config-version: 1
+
+gui:
+  title: "Carpenter Workbench"
+  rows: 3
+  recipe-slots:
+    - 2
+    - 4
+    - 6
+  input-slots:
+    - 10
+    - 12
+    - 14
+  result-slot: 16
+
+recipes:
+  chair:
+    output: chair
+    ingredients:
+      OAK_PLANKS: 6
+      STICK: 4
+
+  table:
+    output: table
+    ingredients:
+      OAK_PLANKS: 12
+      STICK: 4
+
+  bookshelf:
+    output: bookshelf
+    ingredients:
+      OAK_PLANKS: 8
+      BOOK: 3
