@@ -1,4 +1,4 @@
-config-version: 2
+config-version: 3
 
 furniture:
   chair:
@@ -46,7 +46,7 @@ furniture:
       y: 0.50
       z: 0.0
     collision:
-      mode: CUSTOM
+      mode: BARRIER
       width: 2.0
       depth: 2.0
       height: 1.0
