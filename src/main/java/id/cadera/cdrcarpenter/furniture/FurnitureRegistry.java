@@ -16,7 +16,7 @@ import java.util.Map;
 import java.util.Set;
 
 public final class FurnitureRegistry {
-    private static final int CONFIG_VERSION = 5;
+    private static final int CONFIG_VERSION = 6;
     private static final List<String> DEFAULT_BOOKSHELF_MATERIALS = List.of(
             "BOOK",
             "WRITABLE_BOOK",
@@ -68,7 +68,8 @@ public final class FurnitureRegistry {
             }
 
             double defaultHitboxWidth = id.equals("table") ? 2.0D : 1.0D;
-            double defaultHitboxHeight = id.equals("table") ? 1.10D : (id.equals("bookshelf") ? 1.55D : 1.0D);
+            double defaultHitboxHeight = id.equals("table") ? 1.10D
+                    : (id.equals("bookshelf") ? 1.55D : (id.equals("workbench") ? 1.10D : 1.0D));
             float hitboxWidth = (float) section.getDouble("hitbox.width", defaultHitboxWidth);
             float hitboxHeight = (float) section.getDouble("hitbox.height", defaultHitboxHeight);
             hitboxWidth = Math.max(0.1F, Math.min(hitboxWidth, 4.0F));
@@ -127,6 +128,8 @@ public final class FurnitureRegistry {
                 storageTitle = displayName;
             }
             Set<Material> storageAllowedMaterials = parseAllowedMaterials(section, id);
+
+            boolean workbenchEnabled = section.getBoolean("workbench.enabled", id.equals("workbench"));
 
             if (!section.isSet("collision.mode")) {
                 section.set("collision.mode", collisionMode.name());
@@ -226,6 +229,13 @@ public final class FurnitureRegistry {
                 }
             }
 
+            if (id.equals("workbench") || section.isConfigurationSection("workbench") || section.isSet("workbench.enabled")) {
+                if (!section.isSet("workbench.enabled")) {
+                    section.set("workbench.enabled", workbenchEnabled);
+                    migrated = true;
+                }
+            }
+
             definitions.put(id, new FurnitureDefinition(
                     id,
                     displayName,
@@ -257,7 +267,8 @@ public final class FurnitureRegistry {
                     storageEnabled,
                     storageRows,
                     storageTitle,
-                    Set.copyOf(storageAllowedMaterials)
+                    Set.copyOf(storageAllowedMaterials),
+                    workbenchEnabled
             ));
         }
 
@@ -381,6 +392,30 @@ public final class FurnitureRegistry {
                 changed = true;
             }
             currentVersion = 5;
+            yaml.set("config-version", currentVersion);
+            changed = true;
+        }
+
+        if (currentVersion < 6) {
+            ConfigurationSection workbench = root.getConfigurationSection("workbench");
+            if (workbench != null) {
+                workbench.set("display-name", "Carpenter Workbench");
+                workbench.set("itemsadder-id", "cdrcarpenter:workbench");
+                workbench.set("visual-offset.x", 0.0D);
+                workbench.set("visual-offset.y", 0.0D);
+                workbench.set("visual-offset.z", 0.0D);
+                workbench.set("collision.mode", "NONE");
+                workbench.set("hitbox.width", 1.0D);
+                workbench.set("hitbox.height", 1.10D);
+                workbench.set("hitbox.offset.x", 0.0D);
+                workbench.set("hitbox.offset.y", 0.0D);
+                workbench.set("hitbox.offset.z", 0.0D);
+                workbench.set("seat.enabled", false);
+                workbench.set("storage.enabled", false);
+                workbench.set("workbench.enabled", true);
+                changed = true;
+            }
+            currentVersion = 6;
             yaml.set("config-version", currentVersion);
             changed = true;
         }
