@@ -1,6 +1,8 @@
 package id.cadera.cdrcarpenter.crafting;
 
 import id.cadera.cdrcarpenter.CdrCarpenter;
+import id.cadera.cdrcarpenter.blueprint.BlueprintDefinition;
+import id.cadera.cdrcarpenter.blueprint.BlueprintManager;
 import id.cadera.cdrcarpenter.furniture.FurnitureDefinition;
 import id.cadera.cdrcarpenter.furniture.FurnitureItemFactory;
 import id.cadera.cdrcarpenter.furniture.FurnitureManager;
@@ -46,6 +48,7 @@ public final class WorkbenchManager implements Listener {
     private final CdrCarpenter plugin;
     private final FurnitureManager furnitureManager;
     private final FurnitureRegistry registry;
+    private final BlueprintManager blueprintManager;
     private final File configFile;
     private final Map<Inventory, Session> sessions = new IdentityHashMap<>();
     private final List<WorkbenchRecipe> recipes = new ArrayList<>();
@@ -56,10 +59,16 @@ public final class WorkbenchManager implements Listener {
     private List<Integer> inputSlots = DEFAULT_INPUT_SLOTS;
     private int resultSlot = DEFAULT_RESULT_SLOT;
 
-    public WorkbenchManager(CdrCarpenter plugin, FurnitureManager furnitureManager, FurnitureRegistry registry) {
+    public WorkbenchManager(
+            CdrCarpenter plugin,
+            FurnitureManager furnitureManager,
+            FurnitureRegistry registry,
+            BlueprintManager blueprintManager
+    ) {
         this.plugin = plugin;
         this.furnitureManager = furnitureManager;
         this.registry = registry;
+        this.blueprintManager = blueprintManager;
         this.configFile = new File(plugin.getDataFolder(), "workbench.yml");
         loadConfig();
     }
@@ -80,7 +89,7 @@ public final class WorkbenchManager implements Listener {
         }
 
         Inventory inventory = Bukkit.createInventory(null, rows * 9, title);
-        Session session = new Session(instanceId, recipes.getFirst().id());
+        Session session = new Session(instanceId, player.getUniqueId(), firstRecipeFor(player.getUniqueId()));
         sessions.put(inventory, session);
         renderFrame(inventory);
         renderSelectors(inventory, session);
@@ -257,18 +266,44 @@ public final class WorkbenchManager implements Listener {
                 inventory.setItem(slot, filler());
                 continue;
             }
+
             WorkbenchRecipe recipe = recipes.get(index);
             FurnitureDefinition output = registry.get(recipe.outputFurnitureId());
-            ItemStack icon = output == null ? new ItemStack(Material.BARRIER) : FurnitureItemFactory.create(plugin, output, 1);
+            boolean unlocked = canUseRecipe(session.playerId(), recipe.id());
+            ItemStack icon;
+
+            if (unlocked) {
+                icon = output == null ? new ItemStack(Material.BARRIER) : FurnitureItemFactory.create(plugin, output, 1);
+            } else {
+                BlueprintDefinition blueprint = blueprintManager.forRecipe(recipe.id());
+                icon = blueprint == null ? new ItemStack(Material.PAPER) : blueprintManager.createBlueprint(blueprint.id(), 1);
+                if (icon == null) {
+                    icon = new ItemStack(Material.PAPER);
+                }
+            }
+
             ItemMeta meta = icon.getItemMeta();
             if (meta != null) {
+                if (!unlocked && output != null) {
+                    meta.setDisplayName("§cLocked: " + output.displayName());
+                }
                 List<String> lore = new ArrayList<>();
+                if (!unlocked) {
+                    BlueprintDefinition blueprint = blueprintManager.forRecipe(recipe.id());
+                    lore.add("§cBlueprint required");
+                    lore.add("§7Learn §f" + (blueprint == null ? "the matching Blueprint" : blueprint.displayName()) + "§7 first.");
+                    lore.add("");
+                }
                 lore.add("§7Requires:");
                 for (Map.Entry<String, Integer> ingredient : recipe.ingredients().entrySet()) {
                     lore.add("§f- " + ingredient.getValue() + "x " + prettyIngredient(ingredient.getKey()));
                 }
                 lore.add("");
-                lore.add(recipe.id().equals(session.selectedRecipeId()) ? "§aSelected recipe" : "§eClick to select");
+                if (recipe.id().equals(session.selectedRecipeId())) {
+                    lore.add(unlocked ? "§aSelected recipe" : "§cSelected but locked");
+                } else {
+                    lore.add(unlocked ? "§eClick to select" : "§8Click to inspect locked recipe");
+                }
                 meta.setLore(lore);
                 icon.setItemMeta(meta);
             }
@@ -282,6 +317,14 @@ public final class WorkbenchManager implements Listener {
             inventory.setItem(resultSlot, unavailable("No recipe selected"));
             return;
         }
+        if (!canUseRecipe(session.playerId(), recipe.id())) {
+            BlueprintDefinition blueprint = blueprintManager.forRecipe(recipe.id());
+            inventory.setItem(resultSlot, unavailable(
+                    blueprint == null ? "Blueprint required" : "Learn " + blueprint.displayName()
+            ));
+            return;
+        }
+
         FurnitureDefinition output = registry.get(recipe.outputFurnitureId());
         if (output == null) {
             inventory.setItem(resultSlot, unavailable("Recipe output is unavailable"));
@@ -322,6 +365,13 @@ public final class WorkbenchManager implements Listener {
         if (recipe == null) {
             return;
         }
+        if (!canUseRecipe(player.getUniqueId(), recipe.id())) {
+            BlueprintDefinition blueprint = blueprintManager.forRecipe(recipe.id());
+            player.sendMessage("§cYou have not learned "
+                    + (blueprint == null ? "the required Blueprint" : blueprint.displayName()) + "§c yet.");
+            updateResult(inventory, session);
+            return;
+        }
         if (!hasIngredients(inventory, recipe)) {
             player.sendMessage("§cYou do not have the required materials in the Workbench input slots.");
             updateResult(inventory, session);
@@ -340,6 +390,19 @@ public final class WorkbenchManager implements Listener {
         leftovers.values().forEach(item -> player.getWorld().dropItemNaturally(player.getLocation(), item));
         player.sendMessage("§aCrafted §f" + output.displayName() + "§a.");
         updateResult(inventory, session);
+    }
+
+    private boolean canUseRecipe(UUID playerId, String recipeId) {
+        return blueprintManager.forRecipe(recipeId) == null || blueprintManager.isRecipeUnlocked(playerId, recipeId);
+    }
+
+    private String firstRecipeFor(UUID playerId) {
+        for (WorkbenchRecipe recipe : recipes) {
+            if (canUseRecipe(playerId, recipe.id())) {
+                return recipe.id();
+            }
+        }
+        return recipes.getFirst().id();
     }
 
     private boolean hasIngredients(Inventory inventory, WorkbenchRecipe recipe) {
@@ -535,6 +598,10 @@ public final class WorkbenchManager implements Listener {
         if (session == null || !(event.getWhoClicked() instanceof Player player)) {
             return;
         }
+        if (!session.playerId().equals(player.getUniqueId())) {
+            event.setCancelled(true);
+            return;
+        }
 
         int rawSlot = event.getRawSlot();
         if (rawSlot >= 0 && rawSlot < top.getSize()) {
@@ -566,7 +633,12 @@ public final class WorkbenchManager implements Listener {
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onInventoryDrag(InventoryDragEvent event) {
         Inventory top = event.getView().getTopInventory();
-        if (!sessions.containsKey(top)) {
+        Session session = sessions.get(top);
+        if (session == null) {
+            return;
+        }
+        if (!session.playerId().equals(event.getWhoClicked().getUniqueId())) {
+            event.setCancelled(true);
             return;
         }
         for (int rawSlot : event.getRawSlots()) {
@@ -591,15 +663,21 @@ public final class WorkbenchManager implements Listener {
 
     private static final class Session {
         private final String instanceId;
+        private final UUID playerId;
         private String selectedRecipeId;
 
-        private Session(String instanceId, String selectedRecipeId) {
+        private Session(String instanceId, UUID playerId, String selectedRecipeId) {
             this.instanceId = instanceId;
+            this.playerId = playerId;
             this.selectedRecipeId = selectedRecipeId;
         }
 
         private String instanceId() {
             return instanceId;
+        }
+
+        private UUID playerId() {
+            return playerId;
         }
 
         private String selectedRecipeId() {
