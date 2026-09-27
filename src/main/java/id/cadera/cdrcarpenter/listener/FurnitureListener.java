@@ -10,7 +10,6 @@ import id.cadera.cdrcarpenter.furniture.FurnitureRegistry;
 import id.cadera.cdrcarpenter.seating.SeatingManager;
 import id.cadera.cdrcarpenter.storage.StorageManager;
 import org.bukkit.Location;
-import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Interaction;
 import org.bukkit.entity.Player;
@@ -58,8 +57,8 @@ public final class FurnitureListener implements Listener {
         }
 
         Block clicked = event.getClickedBlock();
-        if (clicked.getType() == Material.BARRIER) {
-            Interaction furniture = manager.findFurnitureAtBarrier(clicked.getLocation());
+        if (manager.isConfiguredCollisionMaterial(clicked.getType())) {
+            Interaction furniture = manager.findFurnitureAtCollisionBlock(clicked.getLocation());
             if (furniture != null) {
                 if (event.getAction() == Action.LEFT_CLICK_BLOCK) {
                     event.setCancelled(true);
@@ -160,11 +159,11 @@ public final class FurnitureListener implements Listener {
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-    public void onBarrierBreak(BlockBreakEvent event) {
-        if (event.getBlock().getType() != Material.BARRIER) {
+    public void onCollisionBlockBreak(BlockBreakEvent event) {
+        if (!manager.isConfiguredCollisionMaterial(event.getBlock().getType())) {
             return;
         }
-        Interaction furniture = manager.findFurnitureAtBarrier(event.getBlock().getLocation());
+        Interaction furniture = manager.findFurnitureAtCollisionBlock(event.getBlock().getLocation());
         if (furniture == null) {
             return;
         }
