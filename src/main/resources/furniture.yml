@@ -1,4 +1,4 @@
-config-version: 4
+config-version: 5
 
 furniture:
   chair:
@@ -28,6 +28,8 @@ furniture:
         z: 0.0
       yaw-offset: 0.0
       can-rotate: false
+    storage:
+      enabled: false
     hitbox:
       width: 1.00
       height: 1.55
@@ -57,6 +59,8 @@ furniture:
         z: 0.0
     seat:
       enabled: false
+    storage:
+      enabled: false
     hitbox:
       width: 2.0
       height: 1.10
@@ -66,7 +70,7 @@ furniture:
         z: -0.50
 
   bookshelf:
-    display-name: "Bookshelf"
+    display-name: "Oak Bookshelf"
     material: PAPER
     custom-model-data: 1003
     itemsadder-id: "cdrcarpenter:bookshelf"
@@ -76,9 +80,22 @@ furniture:
       z: 0.0
     collision:
       mode: NONE
+    seat:
+      enabled: false
+    storage:
+      enabled: true
+      rows: 3
+      title: "Bookshelf"
+      allowed-materials:
+        - BOOK
+        - WRITABLE_BOOK
+        - WRITTEN_BOOK
+        - PAPER
+        - MAP
+        - FILLED_MAP
     hitbox:
-      width: 0.95
-      height: 1.80
+      width: 1.00
+      height: 1.55
       offset:
         x: 0.0
         y: 0.0
@@ -95,6 +112,10 @@ furniture:
       z: 0.0
     collision:
       mode: NONE
+    seat:
+      enabled: false
+    storage:
+      enabled: false
     hitbox:
       width: 1.00
       height: 1.05
@@ -114,6 +135,10 @@ furniture:
       z: 0.0
     collision:
       mode: NONE
+    seat:
+      enabled: false
+    storage:
+      enabled: false
     hitbox:
       width: 1.00
       height: 1.05
