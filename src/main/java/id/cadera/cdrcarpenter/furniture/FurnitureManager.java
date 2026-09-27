@@ -6,6 +6,10 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
+import org.bukkit.block.data.BlockData;
+import org.bukkit.block.data.Directional;
+import org.bukkit.block.data.Rotatable;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Interaction;
 import org.bukkit.entity.ItemDisplay;
@@ -61,6 +65,17 @@ public final class FurnitureManager {
             return false;
         }
 
+        if (definition.collisionMode() == FurnitureCollisionMode.BLOCK) {
+            if (definition.collisionBlocks().isEmpty()) {
+                player.sendMessage("§cThis furniture has BLOCK collision enabled but no valid collision block is configured.");
+                return false;
+            }
+            if (!canPlaceBlockCollision(interactionLocation, definition, yaw)) {
+                player.sendMessage("§cThere is not enough room for this furniture collision block.");
+                return false;
+            }
+        }
+
         Location displayLocation = applyVisualOffset(anchorLocation, definition, yaw);
         displayLocation.setYaw(yaw);
 
@@ -92,6 +107,8 @@ public final class FurnitureManager {
 
         if (definition.collisionMode() == FurnitureCollisionMode.BARRIER) {
             placeBarrierFootprint(interaction.getLocation(), definition);
+        } else if (definition.collisionMode() == FurnitureCollisionMode.BLOCK) {
+            placeBlockCollision(interaction.getLocation(), definition);
         }
 
         if (player.getGameMode() != GameMode.CREATIVE) {
@@ -140,10 +157,14 @@ public final class FurnitureManager {
 
         Location formerInteraction = removeInstance(furnitureEntity.getLocation(), instanceId);
         if (formerInteraction != null) {
-            clearBarrierFootprint(formerInteraction, definition);
-            // Upgrade-safe cleanup for pre-footprint single-barrier versions.
-            if (formerInteraction.getBlock().getType() == Material.BARRIER) {
-                formerInteraction.getBlock().setType(Material.AIR, false);
+            if (definition.collisionMode() == FurnitureCollisionMode.BLOCK) {
+                clearBlockCollision(formerInteraction, definition);
+            } else {
+                clearBarrierFootprint(formerInteraction, definition);
+                // Upgrade-safe cleanup for pre-footprint single-barrier versions.
+                if (formerInteraction.getBlock().getType() == Material.BARRIER) {
+                    formerInteraction.getBlock().setType(Material.AIR, false);
+                }
             }
         }
 
@@ -155,12 +176,16 @@ public final class FurnitureManager {
     }
 
     public Interaction findFurnitureAtBarrier(Location blockLocation) {
+        return findFurnitureAtCollisionBlock(blockLocation);
+    }
+
+    public Interaction findFurnitureAtCollisionBlock(Location blockLocation) {
         Block clicked = blockLocation.getBlock();
         Location center = blockLocation.clone().add(0.5D, 0.5D, 0.5D);
         Interaction fallback = null;
         double fallbackDistance = Double.MAX_VALUE;
 
-        for (Entity nearby : center.getWorld().getNearbyEntities(center, 4.5D, 2.5D, 4.5D)) {
+        for (Entity nearby : center.getWorld().getNearbyEntities(center, 5.5D, 3.5D, 5.5D)) {
             if (!(nearby instanceof Interaction interaction) || !isFurnitureEntity(interaction)) {
                 continue;
             }
@@ -176,16 +201,42 @@ public final class FurnitureManager {
                         return interaction;
                     }
                 }
+            } else if (definition.collisionMode() == FurnitureCollisionMode.BLOCK) {
+                for (CollisionTarget target : blockCollisionTargets(
+                        interaction.getLocation(), definition, interaction.getLocation().getYaw())) {
+                    if (sameBlock(target.block(), clicked) && clicked.getType() == target.definition().material()) {
+                        return interaction;
+                    }
+                }
             }
 
-            // Legacy fallback for old single-barrier furniture.
-            double distance = interaction.getLocation().distanceSquared(center);
-            if (distance < fallbackDistance && distance <= 2.25D) {
-                fallback = interaction;
-                fallbackDistance = distance;
+            // Legacy fallback for old single-barrier furniture only.
+            if (clicked.getType() == Material.BARRIER) {
+                double distance = interaction.getLocation().distanceSquared(center);
+                if (distance < fallbackDistance && distance <= 2.25D) {
+                    fallback = interaction;
+                    fallbackDistance = distance;
+                }
             }
         }
         return fallback;
+    }
+
+    public boolean isConfiguredCollisionMaterial(Material material) {
+        if (material == Material.BARRIER) {
+            return true;
+        }
+        for (FurnitureDefinition definition : registry.all()) {
+            if (definition.collisionMode() != FurnitureCollisionMode.BLOCK) {
+                continue;
+            }
+            for (FurnitureCollisionBlock collisionBlock : definition.collisionBlocks()) {
+                if (collisionBlock.material() == material) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     public FurnitureDefinition definitionFor(Entity entity) {
@@ -263,8 +314,6 @@ public final class FurnitureManager {
         }
 
         for (Block block : barrierFootprint(interactionLocation, definition, yaw)) {
-            // Never destroy water, plants or another replaceable/passable block. Barrier furniture
-            // may only claim actual air blocks so pickup can safely restore them to AIR.
             if (!block.getType().isAir()) {
                 return false;
             }
@@ -272,6 +321,18 @@ public final class FurnitureManager {
 
         BoundingBox proposed = customCollisionBox(interactionLocation, definition, yaw);
         return !overlapsExistingCustomFurniture(proposed, interactionLocation, definition);
+    }
+
+    private boolean canPlaceBlockCollision(Location interactionLocation, FurnitureDefinition definition, float yaw) {
+        if (definition.collisionBlocks().isEmpty() || interactionLocation.getWorld() == null) {
+            return false;
+        }
+        for (CollisionTarget target : blockCollisionTargets(interactionLocation, definition, yaw)) {
+            if (!target.block().getType().isAir()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private boolean overlapsExistingCustomFurniture(
@@ -324,6 +385,46 @@ public final class FurnitureManager {
         return blocks;
     }
 
+    private List<CollisionTarget> blockCollisionTargets(
+            Location interactionLocation,
+            FurnitureDefinition definition,
+            float yaw
+    ) {
+        List<CollisionTarget> targets = new ArrayList<>();
+        Block anchor = interactionLocation.getBlock();
+        int quarterTurns = Math.floorMod(Math.round(yaw / 90.0F), 4);
+
+        for (FurnitureCollisionBlock collisionBlock : definition.collisionBlocks()) {
+            int x = collisionBlock.offsetX();
+            int z = collisionBlock.offsetZ();
+            int worldX;
+            int worldZ;
+            switch (quarterTurns) {
+                case 1 -> {
+                    worldX = -z;
+                    worldZ = x;
+                }
+                case 2 -> {
+                    worldX = -x;
+                    worldZ = -z;
+                }
+                case 3 -> {
+                    worldX = z;
+                    worldZ = -x;
+                }
+                default -> {
+                    worldX = x;
+                    worldZ = z;
+                }
+            }
+            targets.add(new CollisionTarget(
+                    anchor.getRelative(worldX, collisionBlock.offsetY(), worldZ),
+                    collisionBlock
+            ));
+        }
+        return targets;
+    }
+
     private void placeBarrierFootprint(Location interactionLocation, FurnitureDefinition definition) {
         for (Block block : barrierFootprint(interactionLocation, definition, interactionLocation.getYaw())) {
             if (block.getType().isAir()) {
@@ -338,6 +439,57 @@ public final class FurnitureManager {
                 block.setType(Material.AIR, false);
             }
         }
+    }
+
+    private void placeBlockCollision(Location interactionLocation, FurnitureDefinition definition) {
+        float yaw = interactionLocation.getYaw();
+        for (CollisionTarget target : blockCollisionTargets(interactionLocation, definition, yaw)) {
+            Block block = target.block();
+            if (!block.getType().isAir() && block.getType() != target.definition().material()) {
+                continue;
+            }
+            if (block.getType().isAir()) {
+                block.setType(target.definition().material(), false);
+            }
+            orientCollisionBlock(block, yaw);
+        }
+    }
+
+    private void clearBlockCollision(Location interactionLocation, FurnitureDefinition definition) {
+        for (CollisionTarget target : blockCollisionTargets(
+                interactionLocation, definition, interactionLocation.getYaw())) {
+            if (target.block().getType() == target.definition().material()) {
+                target.block().setType(Material.AIR, false);
+            }
+        }
+    }
+
+    private void orientCollisionBlock(Block block, float yaw) {
+        BlockFace face = faceForYaw(yaw);
+        BlockData data = block.getBlockData();
+        boolean changed = false;
+
+        if (data instanceof Directional directional && directional.getFaces().contains(face)) {
+            directional.setFacing(face);
+            changed = true;
+        }
+        if (data instanceof Rotatable rotatable) {
+            rotatable.setRotation(face);
+            changed = true;
+        }
+        if (changed) {
+            block.setBlockData(data, false);
+        }
+    }
+
+    private BlockFace faceForYaw(float yaw) {
+        int quarterTurns = Math.floorMod(Math.round(yaw / 90.0F), 4);
+        return switch (quarterTurns) {
+            case 1 -> BlockFace.WEST;
+            case 2 -> BlockFace.NORTH;
+            case 3 -> BlockFace.EAST;
+            default -> BlockFace.SOUTH;
+        };
     }
 
     private boolean overlaps(BoundingBox a, BoundingBox b) {
@@ -362,6 +514,12 @@ public final class FurnitureManager {
 
                 if (definition.collisionMode() == FurnitureCollisionMode.BARRIER) {
                     placeBarrierFootprint(interaction.getLocation(), definition);
+                } else if (definition.collisionMode() == FurnitureCollisionMode.BLOCK) {
+                    // Remove a legacy single barrier if this furniture was upgraded to BLOCK mode.
+                    if (interaction.getLocation().getBlock().getType() == Material.BARRIER) {
+                        interaction.getLocation().getBlock().setType(Material.AIR, false);
+                    }
+                    placeBlockCollision(interaction.getLocation(), definition);
                 } else {
                     // Clears barriers when a furniture definition is migrated away from BARRIER.
                     clearBarrierFootprint(interaction.getLocation(), definition);
@@ -456,5 +614,8 @@ public final class FurnitureManager {
         } else {
             held.setAmount(held.getAmount() - 1);
         }
+    }
+
+    private record CollisionTarget(Block block, FurnitureCollisionBlock definition) {
     }
 }
