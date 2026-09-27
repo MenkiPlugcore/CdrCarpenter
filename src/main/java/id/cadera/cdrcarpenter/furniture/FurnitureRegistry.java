@@ -7,6 +7,7 @@ import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -16,7 +17,7 @@ import java.util.Map;
 import java.util.Set;
 
 public final class FurnitureRegistry {
-    private static final int CONFIG_VERSION = 6;
+    private static final int CONFIG_VERSION = 7;
     private static final List<String> DEFAULT_BOOKSHELF_MATERIALS = List.of(
             "BOOK",
             "WRITABLE_BOOK",
@@ -113,6 +114,10 @@ public final class FurnitureRegistry {
             double collisionOffsetY = section.getDouble("collision.offset.y", 0.0D);
             double collisionOffsetZ = section.getDouble("collision.offset.z", 0.0D);
             boolean collisionStandable = section.getBoolean("collision.standable", !id.equals("chair"));
+            List<FurnitureCollisionBlock> collisionBlocks = parseCollisionBlocks(section, id);
+            if (collisionMode == FurnitureCollisionMode.BLOCK && collisionBlocks.isEmpty()) {
+                plugin.getLogger().warning("Furniture '" + id + "' uses collision.mode BLOCK but has no valid collision.material or collision.blocks.");
+            }
 
             boolean seatEnabled = section.getBoolean("seat.enabled", id.equals("chair"));
             double seatOffsetX = section.getDouble("seat.offset.x", 0.0D);
@@ -258,6 +263,7 @@ public final class FurnitureRegistry {
                     collisionOffsetY,
                     collisionOffsetZ,
                     collisionStandable,
+                    List.copyOf(collisionBlocks),
                     seatEnabled,
                     seatOffsetX,
                     seatOffsetY,
@@ -279,6 +285,56 @@ public final class FurnitureRegistry {
             } catch (IOException ex) {
                 plugin.getLogger().warning("Could not save migrated furniture.yml: " + ex.getMessage());
             }
+        }
+    }
+
+    private List<FurnitureCollisionBlock> parseCollisionBlocks(ConfigurationSection section, String id) {
+        List<FurnitureCollisionBlock> result = new ArrayList<>();
+        List<Map<?, ?>> configured = section.getMapList("collision.blocks");
+
+        for (Map<?, ?> entry : configured) {
+            Object rawMaterial = entry.get("material");
+            Material material = rawMaterial == null ? null : Material.matchMaterial(String.valueOf(rawMaterial));
+            if (material == null || material.isAir() || !material.isBlock()) {
+                plugin.getLogger().warning("Furniture '" + id + "' has invalid collision block material '" + rawMaterial + "'.");
+                continue;
+            }
+            result.add(new FurnitureCollisionBlock(
+                    material,
+                    mapInt(entry.get("x")),
+                    mapInt(entry.get("y")),
+                    mapInt(entry.get("z"))
+            ));
+        }
+
+        if (!result.isEmpty()) {
+            return result;
+        }
+
+        String shorthand = section.getString("collision.material");
+        if (shorthand == null || shorthand.isBlank()) {
+            return result;
+        }
+        Material material = Material.matchMaterial(shorthand);
+        if (material == null || material.isAir() || !material.isBlock()) {
+            plugin.getLogger().warning("Furniture '" + id + "' has invalid collision.material '" + shorthand + "'.");
+            return result;
+        }
+        result.add(new FurnitureCollisionBlock(material, 0, 0, 0));
+        return result;
+    }
+
+    private int mapInt(Object value) {
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        if (value == null) {
+            return 0;
+        }
+        try {
+            return Integer.parseInt(String.valueOf(value));
+        } catch (NumberFormatException ignored) {
+            return 0;
         }
     }
 
@@ -416,6 +472,22 @@ public final class FurnitureRegistry {
                 changed = true;
             }
             currentVersion = 6;
+            yaml.set("config-version", currentVersion);
+            changed = true;
+        }
+
+        if (currentVersion < 7) {
+            ConfigurationSection workbench = root.getConfigurationSection("workbench");
+            if (workbench != null && !workbench.isSet("collision.material")) {
+                workbench.set("collision.material", "OAK_SLAB");
+                changed = true;
+            }
+            ConfigurationSection sawmill = root.getConfigurationSection("sawmill");
+            if (sawmill != null && !sawmill.isSet("collision.material")) {
+                sawmill.set("collision.material", "STONECUTTER");
+                changed = true;
+            }
+            currentVersion = 7;
             yaml.set("config-version", currentVersion);
             changed = true;
         }
