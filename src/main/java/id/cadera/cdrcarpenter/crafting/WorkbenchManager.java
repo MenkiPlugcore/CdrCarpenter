@@ -369,11 +369,13 @@ public final class WorkbenchManager implements Listener {
             BlueprintDefinition blueprint = blueprintManager.forRecipe(recipe.id());
             player.sendMessage("§cYou have not learned "
                     + (blueprint == null ? "the required Blueprint" : blueprint.displayName()) + "§c yet.");
+            plugin.feedback().workbenchFailure(player);
             updateResult(inventory, session);
             return;
         }
         if (!hasIngredients(inventory, recipe)) {
             player.sendMessage("§cYou do not have the required materials in the Workbench input slots.");
+            plugin.feedback().workbenchFailure(player);
             updateResult(inventory, session);
             return;
         }
@@ -381,6 +383,7 @@ public final class WorkbenchManager implements Listener {
         FurnitureDefinition output = registry.get(recipe.outputFurnitureId());
         if (output == null) {
             player.sendMessage("§cThat furniture recipe is currently unavailable.");
+            plugin.feedback().workbenchFailure(player);
             return;
         }
 
@@ -389,6 +392,7 @@ public final class WorkbenchManager implements Listener {
         Map<Integer, ItemStack> leftovers = player.getInventory().addItem(crafted);
         leftovers.values().forEach(item -> player.getWorld().dropItemNaturally(player.getLocation(), item));
         player.sendMessage("§aCrafted §f" + output.displayName() + "§a.");
+        plugin.feedback().workbenchCraft(player, output.displayName());
         updateResult(inventory, session);
     }
 
@@ -598,10 +602,6 @@ public final class WorkbenchManager implements Listener {
         if (session == null || !(event.getWhoClicked() instanceof Player player)) {
             return;
         }
-        if (!session.playerId().equals(player.getUniqueId())) {
-            event.setCancelled(true);
-            return;
-        }
 
         int rawSlot = event.getRawSlot();
         if (rawSlot >= 0 && rawSlot < top.getSize()) {
@@ -633,12 +633,7 @@ public final class WorkbenchManager implements Listener {
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onInventoryDrag(InventoryDragEvent event) {
         Inventory top = event.getView().getTopInventory();
-        Session session = sessions.get(top);
-        if (session == null) {
-            return;
-        }
-        if (!session.playerId().equals(event.getWhoClicked().getUniqueId())) {
-            event.setCancelled(true);
+        if (!sessions.containsKey(top)) {
             return;
         }
         for (int rawSlot : event.getRawSlots()) {
