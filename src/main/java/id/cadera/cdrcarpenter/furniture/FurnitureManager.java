@@ -108,7 +108,8 @@ public final class FurnitureManager {
         if (definition.collisionMode() == FurnitureCollisionMode.BARRIER) {
             placeBarrierFootprint(interaction.getLocation(), definition);
         } else if (definition.collisionMode() == FurnitureCollisionMode.BLOCK) {
-            placeBlockCollision(interaction.getLocation(), definition);
+            placeBlockCollision(interaction.getLocation(), definition.collisionBlocks());
+            saveCollisionState(interaction, definition.collisionBlocks());
         }
 
         if (player.getGameMode() != GameMode.CREATIVE) {
@@ -155,13 +156,18 @@ public final class FurnitureManager {
             return true;
         }
 
+        List<FurnitureCollisionBlock> storedCollision = furnitureEntity instanceof Interaction interaction
+                ? loadCollisionState(interaction)
+                : List.of();
+
         Location formerInteraction = removeInstance(furnitureEntity.getLocation(), instanceId);
         if (formerInteraction != null) {
-            if (definition.collisionMode() == FurnitureCollisionMode.BLOCK) {
-                clearBlockCollision(formerInteraction, definition);
+            if (!storedCollision.isEmpty()) {
+                clearBlockCollision(formerInteraction, storedCollision);
+            } else if (definition.collisionMode() == FurnitureCollisionMode.BLOCK) {
+                clearBlockCollision(formerInteraction, definition.collisionBlocks());
             } else {
                 clearBarrierFootprint(formerInteraction, definition);
-                // Upgrade-safe cleanup for pre-footprint single-barrier versions.
                 if (formerInteraction.getBlock().getType() == Material.BARRIER) {
                     formerInteraction.getBlock().setType(Material.AIR, false);
                 }
@@ -203,14 +209,13 @@ public final class FurnitureManager {
                 }
             } else if (definition.collisionMode() == FurnitureCollisionMode.BLOCK) {
                 for (CollisionTarget target : blockCollisionTargets(
-                        interaction.getLocation(), definition, interaction.getLocation().getYaw())) {
+                        interaction.getLocation(), definition.collisionBlocks(), interaction.getLocation().getYaw())) {
                     if (sameBlock(target.block(), clicked) && clicked.getType() == target.definition().material()) {
                         return interaction;
                     }
                 }
             }
 
-            // Legacy fallback for old single-barrier furniture only.
             if (clicked.getType() == Material.BARRIER) {
                 double distance = interaction.getLocation().distanceSquared(center);
                 if (distance < fallbackDistance && distance <= 2.25D) {
@@ -327,7 +332,7 @@ public final class FurnitureManager {
         if (definition.collisionBlocks().isEmpty() || interactionLocation.getWorld() == null) {
             return false;
         }
-        for (CollisionTarget target : blockCollisionTargets(interactionLocation, definition, yaw)) {
+        for (CollisionTarget target : blockCollisionTargets(interactionLocation, definition.collisionBlocks(), yaw)) {
             if (!target.block().getType().isAir()) {
                 return false;
             }
@@ -387,14 +392,14 @@ public final class FurnitureManager {
 
     private List<CollisionTarget> blockCollisionTargets(
             Location interactionLocation,
-            FurnitureDefinition definition,
+            List<FurnitureCollisionBlock> collisionBlocks,
             float yaw
     ) {
         List<CollisionTarget> targets = new ArrayList<>();
         Block anchor = interactionLocation.getBlock();
         int quarterTurns = Math.floorMod(Math.round(yaw / 90.0F), 4);
 
-        for (FurnitureCollisionBlock collisionBlock : definition.collisionBlocks()) {
+        for (FurnitureCollisionBlock collisionBlock : collisionBlocks) {
             int x = collisionBlock.offsetX();
             int z = collisionBlock.offsetZ();
             int worldX;
@@ -441,9 +446,9 @@ public final class FurnitureManager {
         }
     }
 
-    private void placeBlockCollision(Location interactionLocation, FurnitureDefinition definition) {
+    private void placeBlockCollision(Location interactionLocation, List<FurnitureCollisionBlock> collisionBlocks) {
         float yaw = interactionLocation.getYaw();
-        for (CollisionTarget target : blockCollisionTargets(interactionLocation, definition, yaw)) {
+        for (CollisionTarget target : blockCollisionTargets(interactionLocation, collisionBlocks, yaw)) {
             Block block = target.block();
             if (!block.getType().isAir() && block.getType() != target.definition().material()) {
                 continue;
@@ -455,9 +460,9 @@ public final class FurnitureManager {
         }
     }
 
-    private void clearBlockCollision(Location interactionLocation, FurnitureDefinition definition) {
+    private void clearBlockCollision(Location interactionLocation, List<FurnitureCollisionBlock> collisionBlocks) {
         for (CollisionTarget target : blockCollisionTargets(
-                interactionLocation, definition, interactionLocation.getYaw())) {
+                interactionLocation, collisionBlocks, interactionLocation.getYaw())) {
             if (target.block().getType() == target.definition().material()) {
                 target.block().setType(Material.AIR, false);
             }
@@ -492,6 +497,61 @@ public final class FurnitureManager {
         };
     }
 
+    private void saveCollisionState(Interaction interaction, List<FurnitureCollisionBlock> collisionBlocks) {
+        if (collisionBlocks.isEmpty()) {
+            interaction.getPersistentDataContainer().remove(plugin.collisionStateKey());
+            return;
+        }
+        StringBuilder encoded = new StringBuilder();
+        for (FurnitureCollisionBlock block : collisionBlocks) {
+            if (!encoded.isEmpty()) {
+                encoded.append('|');
+            }
+            encoded.append(block.material().name()).append(',')
+                    .append(block.offsetX()).append(',')
+                    .append(block.offsetY()).append(',')
+                    .append(block.offsetZ());
+        }
+        interaction.getPersistentDataContainer().set(
+                plugin.collisionStateKey(),
+                PersistentDataType.STRING,
+                encoded.toString()
+        );
+    }
+
+    private List<FurnitureCollisionBlock> loadCollisionState(Interaction interaction) {
+        String raw = interaction.getPersistentDataContainer().get(
+                plugin.collisionStateKey(),
+                PersistentDataType.STRING
+        );
+        if (raw == null || raw.isBlank()) {
+            return List.of();
+        }
+
+        List<FurnitureCollisionBlock> result = new ArrayList<>();
+        for (String entry : raw.split("\\|")) {
+            String[] parts = entry.split(",");
+            if (parts.length != 4) {
+                continue;
+            }
+            Material material = Material.matchMaterial(parts[0]);
+            if (material == null || material.isAir() || !material.isBlock()) {
+                continue;
+            }
+            try {
+                result.add(new FurnitureCollisionBlock(
+                        material,
+                        Integer.parseInt(parts[1]),
+                        Integer.parseInt(parts[2]),
+                        Integer.parseInt(parts[3])
+                ));
+            } catch (NumberFormatException ignored) {
+                // Ignore a malformed persisted entry without breaking the whole furniture instance.
+            }
+        }
+        return List.copyOf(result);
+    }
+
     private boolean overlaps(BoundingBox a, BoundingBox b) {
         return a.getMaxX() > b.getMinX() + BOX_EPSILON
                 && a.getMinX() < b.getMaxX() - BOX_EPSILON
@@ -512,16 +572,26 @@ public final class FurnitureManager {
                     continue;
                 }
 
+                List<FurnitureCollisionBlock> storedCollision = loadCollisionState(interaction);
+                List<FurnitureCollisionBlock> desiredCollision = definition.collisionMode() == FurnitureCollisionMode.BLOCK
+                        ? definition.collisionBlocks()
+                        : List.of();
+
+                if (!storedCollision.isEmpty() && !storedCollision.equals(desiredCollision)) {
+                    clearBlockCollision(interaction.getLocation(), storedCollision);
+                }
+
                 if (definition.collisionMode() == FurnitureCollisionMode.BARRIER) {
+                    interaction.getPersistentDataContainer().remove(plugin.collisionStateKey());
                     placeBarrierFootprint(interaction.getLocation(), definition);
                 } else if (definition.collisionMode() == FurnitureCollisionMode.BLOCK) {
-                    // Remove a legacy single barrier if this furniture was upgraded to BLOCK mode.
                     if (interaction.getLocation().getBlock().getType() == Material.BARRIER) {
                         interaction.getLocation().getBlock().setType(Material.AIR, false);
                     }
-                    placeBlockCollision(interaction.getLocation(), definition);
+                    placeBlockCollision(interaction.getLocation(), desiredCollision);
+                    saveCollisionState(interaction, desiredCollision);
                 } else {
-                    // Clears barriers when a furniture definition is migrated away from BARRIER.
+                    interaction.getPersistentDataContainer().remove(plugin.collisionStateKey());
                     clearBarrierFootprint(interaction.getLocation(), definition);
                     if (interaction.getLocation().getBlock().getType() == Material.BARRIER) {
                         interaction.getLocation().getBlock().setType(Material.AIR, false);
