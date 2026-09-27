@@ -53,7 +53,7 @@ public final class SawmillManager implements Listener {
 
     public boolean open(Player player, Interaction interaction) {
         FurnitureDefinition definition = furnitureManager.definitionFor(interaction);
-        if (definition == null || !definition.sawmillEnabled()) {
+        if (definition == null || !"sawmill".equals(definition.id())) {
             return false;
         }
 
@@ -75,12 +75,8 @@ public final class SawmillManager implements Listener {
         if (instanceId == null) {
             return null;
         }
-
         for (Map.Entry<Inventory, Session> entry : sessions.entrySet()) {
-            if (!entry.getValue().instanceId().equals(instanceId)) {
-                continue;
-            }
-            if (!entry.getKey().getViewers().isEmpty()) {
+            if (entry.getValue().instanceId().equals(instanceId) && !entry.getKey().getViewers().isEmpty()) {
                 return "§eSomeone is using this Carpenter Sawmill.";
             }
         }
@@ -100,16 +96,13 @@ public final class SawmillManager implements Listener {
         YamlConfiguration config = YamlConfiguration.loadConfiguration(configFile);
         rows = Math.max(1, Math.min(config.getInt("gui.rows", 3), 6));
         int size = rows * 9;
-
         title = config.getString("gui.title", "Carpenter Sawmill");
         if (title == null || title.isBlank()) {
             title = "Carpenter Sawmill";
         }
-
         inputSlot = sanitizeSlot(config.getInt("gui.input-slot", 11), size, 11);
         actionSlot = sanitizeSlot(config.getInt("gui.action-slot", 13), size, 13);
         outputSlot = sanitizeSlot(config.getInt("gui.output-slot", 15), size, 15);
-
         if (actionSlot == inputSlot) {
             actionSlot = firstFreeSlot(size, Set.of(inputSlot));
         }
@@ -133,11 +126,9 @@ public final class SawmillManager implements Listener {
             }
             acceptedInputs.add(material);
         }
-
         if (acceptedInputs.isEmpty()) {
             acceptedInputs.add(Material.OAK_LOG);
         }
-
         plugin.getLogger().info("Loaded Carpenter Sawmill config with " + acceptedInputs.size()
                 + " accepted log types; output=" + outputPerLog + "x " + outputItemId + ".");
     }
@@ -171,18 +162,12 @@ public final class SawmillManager implements Listener {
     private void updateGui(Inventory inventory) {
         ItemStack input = inventory.getItem(inputSlot);
         boolean valid = isAcceptedInput(input);
-
         ItemStack button = new ItemStack(valid ? Material.STONECUTTER : Material.BARRIER);
         ItemMeta buttonMeta = button.getItemMeta();
         if (buttonMeta != null) {
             buttonMeta.setDisplayName(valid ? "§aCut Wood" : "§cInsert a valid log");
             buttonMeta.setLore(valid
-                    ? java.util.List.of(
-                            "§7Consumes 1 log per click.",
-                            "§7Shift-click to process the whole stack.",
-                            "",
-                            "§eClick to process"
-                    )
+                    ? java.util.List.of("§7Consumes 1 log per click.", "§7Shift-click to process the whole stack.", "", "§eClick to process")
                     : java.util.List.of("§7Put a supported log in the input slot."));
             button.setItemMeta(buttonMeta);
         }
@@ -199,10 +184,7 @@ public final class SawmillManager implements Listener {
         } else {
             ItemMeta meta = preview.getItemMeta();
             if (meta != null) {
-                meta.setLore(java.util.List.of(
-                        "§7Output per log: §f" + outputPerLog,
-                        valid ? "§aReady to cut" : "§8Waiting for input"
-                ));
+                meta.setLore(java.util.List.of("§7Output per log: §f" + outputPerLog, valid ? "§aReady to cut" : "§8Waiting for input"));
                 preview.setItemMeta(meta);
             }
         }
@@ -258,19 +240,16 @@ public final class SawmillManager implements Listener {
             player.sendMessage("§cThat item cannot be processed by this Sawmill.");
             return;
         }
-
         ItemStack target = top.getItem(inputSlot);
         if (target == null || target.getType().isAir()) {
             top.setItem(inputSlot, current.clone());
             event.setCurrentItem(null);
             return;
         }
-
         if (!target.isSimilar(current)) {
             player.sendMessage("§cThe Sawmill input slot already contains a different log type.");
             return;
         }
-
         int max = Math.min(target.getMaxStackSize(), top.getMaxStackSize());
         int room = max - target.getAmount();
         if (room <= 0) {
@@ -325,7 +304,6 @@ public final class SawmillManager implements Listener {
                 }
             });
         }
-
         for (UUID playerId : viewers) {
             Player player = plugin.getServer().getPlayer(playerId);
             if (player != null) {
@@ -342,7 +320,6 @@ public final class SawmillManager implements Listener {
         if (session == null || !(event.getWhoClicked() instanceof Player player)) {
             return;
         }
-
         int rawSlot = event.getRawSlot();
         if (rawSlot >= 0 && rawSlot < top.getSize()) {
             if (rawSlot == actionSlot) {
@@ -358,7 +335,6 @@ public final class SawmillManager implements Listener {
                 event.setCancelled(true);
                 return;
             }
-
             ItemStack cursor = event.getCursor();
             if (cursor != null && !cursor.getType().isAir() && !isAcceptedInput(cursor)) {
                 event.setCancelled(true);
@@ -368,7 +344,6 @@ public final class SawmillManager implements Listener {
             scheduleUpdate(top);
             return;
         }
-
         if (event.isShiftClick() && event.getClickedInventory() != null) {
             event.setCancelled(true);
             transferIntoInput(top, event, player);
@@ -382,14 +357,12 @@ public final class SawmillManager implements Listener {
         if (!sessions.containsKey(top)) {
             return;
         }
-
         for (int rawSlot : event.getRawSlots()) {
             if (rawSlot < top.getSize() && rawSlot != inputSlot) {
                 event.setCancelled(true);
                 return;
             }
         }
-
         ItemStack cursor = event.getOldCursor();
         if (cursor != null && !cursor.getType().isAir() && !isAcceptedInput(cursor)) {
             event.setCancelled(true);
