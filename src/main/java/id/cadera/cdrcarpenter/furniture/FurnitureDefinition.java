@@ -35,6 +35,7 @@ public record FurnitureDefinition(
         boolean storageEnabled,
         int storageRows,
         String storageTitle,
-        Set<Material> storageAllowedMaterials
+        Set<Material> storageAllowedMaterials,
+        boolean workbenchEnabled
 ) {
 }
