@@ -1,0 +1,17 @@
+config-version: 1
+
+blueprints:
+  chair:
+    display-name: "Blueprint: Comfy Dinner Chair"
+    recipe: chair
+    itemsadder-id: "cdrcarpenter:blueprint_chair"
+
+  table:
+    display-name: "Blueprint: Comfy Dinner Table"
+    recipe: table
+    itemsadder-id: "cdrcarpenter:blueprint_table"
+
+  bookshelf:
+    display-name: "Blueprint: Oak Bookshelf"
+    recipe: bookshelf
+    itemsadder-id: "cdrcarpenter:blueprint_bookshelf"
