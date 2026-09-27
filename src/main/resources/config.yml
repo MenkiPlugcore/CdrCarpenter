@@ -1,9 +1,32 @@
-# CdrCarpenter v0.1.1-hotfix3
+# CdrCarpenter v0.2.0
 placement:
   snap-rotation-degrees: 90
   pickup-requires-sneak: true
   left-click-pickup: true
   owner-only-pickup: true
+
+effects:
+  enabled: true
+
+  furniture:
+    sound: true
+    particles: true
+
+  workbench:
+    sound: true
+    particles: true
+    actionbar: true
+
+  sawmill:
+    sound: true
+    particles: true
+    actionbar: true
+    animate-model: true
+
+  blueprint:
+    sound: true
+    particles: true
+    actionbar: true
 
 debug:
   log-placements: false
